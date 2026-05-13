@@ -1,11 +1,13 @@
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000/api';
 
-const getHeaders = () => {
+const getHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('token');
-  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
 };
 
-const api = async (url, options = {}) => {
+const api = async (url, options: RequestInit = {}) => {
   const res = await fetch(`${API_BASE}${url}`, { headers: getHeaders(), ...options });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Request failed' }));
@@ -46,7 +48,8 @@ export const AuthService = {
   confirmPasswordReset: async (token, newPassword) => {
     await api('/auth/user/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) });
     return true;
-  }
+  },
+  verifyResetToken: async (_token) => true
 };
 
 export const ComplaintService = {
@@ -64,4 +67,8 @@ export const NotificationService = {
     const all = await NotificationService.getAll();
     return all.slice(0, 5);
   }
+};
+
+export const AttentionService = {
+  getSummary: () => api('/officer/attention')
 };

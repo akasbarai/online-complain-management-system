@@ -5,6 +5,35 @@ const router = express.Router();
 
 router.use(authMiddleware('user'));
 
+router.get('/attention', async (req, res) => {
+  try {
+    const [[activeComplaints]] = await pool.query(
+      `SELECT COUNT(*) as count FROM complaints
+       WHERE user_id = ?
+       AND is_trashed = FALSE
+       AND status IN ('Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Rejected')`,
+      [req.user.id]
+    );
+    const [[notifications]] = await pool.query(
+      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Users') AND is_read = FALSE"
+    );
+    const [[profile]] = await pool.query(
+      "SELECT COUNT(*) as count FROM users WHERE id = ? AND (mobile IS NULL OR mobile = '' OR address IS NULL OR address = '' OR id_card_url IS NULL OR id_card_url = '')",
+      [req.user.id]
+    );
+
+    res.json({
+      notifications: notifications.count,
+      dashboard: activeComplaints.count,
+      complaints: activeComplaints.count,
+      profile: profile.count
+    });
+  } catch (err) {
+    console.error('User attention error:', err);
+    res.status(500).json({ error: 'Failed to fetch attention summary' });
+  }
+});
+
 router.get('/complaints', async (req, res) => {
   try {
     const [complaints] = await pool.query(`

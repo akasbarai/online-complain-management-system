@@ -6,6 +6,57 @@ const router = express.Router();
 
 router.use(authMiddleware('admin'));
 
+router.get('/attention', async (req, res) => {
+  try {
+    const [[pendingUsers]] = await pool.query("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'");
+    const [[passwordResetRequests]] = await pool.query('SELECT COUNT(*) as count FROM users WHERE password_reset_requested = TRUE');
+    const [[unassignedComplaints]] = await pool.query(
+      "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id IS NULL AND is_trashed = FALSE"
+    );
+    const [[escalatedComplaints]] = await pool.query(
+      "SELECT COUNT(*) as count FROM complaints WHERE status = 'Escalated' AND is_trashed = FALSE"
+    );
+    const [[slaBreachedComplaints]] = await pool.query(
+      `SELECT COUNT(*) as count FROM complaints
+       WHERE is_trashed = FALSE
+       AND status NOT IN ('Resolved', 'Closed', 'Rejected')
+       AND (sla_breached = TRUE OR (sla_deadline IS NOT NULL AND sla_deadline < NOW()))`
+    );
+    const [[officerSetupIssues]] = await pool.query(
+      "SELECT COUNT(*) as count FROM officers WHERE role != 'Admin' AND (status != 'Active' OR hierarchy_level_id IS NULL)"
+    );
+    const [[departmentSetupIssues]] = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM departments d
+       WHERE d.status = 'Active'
+       AND (
+         NOT EXISTS (SELECT 1 FROM hierarchy_levels h WHERE h.department_id = d.id AND h.status = 'Active')
+         OR NOT EXISTS (SELECT 1 FROM officers o WHERE o.department_id = d.id AND o.status = 'Active')
+       )`
+    );
+    const [[notifications]] = await pool.query(
+      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Officers') AND is_read = FALSE"
+    );
+
+    res.json({
+      notifications: notifications.count,
+      users: pendingUsers.count + passwordResetRequests.count,
+      pendingUsers: pendingUsers.count,
+      passwordResetRequests: passwordResetRequests.count,
+      complaints: unassignedComplaints.count + escalatedComplaints.count + slaBreachedComplaints.count,
+      unassignedComplaints: unassignedComplaints.count,
+      escalatedComplaints: escalatedComplaints.count,
+      slaBreachedComplaints: slaBreachedComplaints.count,
+      officers: officerSetupIssues.count,
+      departments: departmentSetupIssues.count,
+      hierarchy: departmentSetupIssues.count
+    });
+  } catch (err) {
+    console.error('Admin attention error:', err);
+    res.status(500).json({ error: 'Failed to fetch attention summary' });
+  }
+});
+
 router.get('/departments', async (req, res) => {
   try {
     const [departments] = await pool.query(

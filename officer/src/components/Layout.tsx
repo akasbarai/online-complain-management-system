@@ -2,10 +2,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import { LayoutDashboard, FileText, CheckCircle, Bell, User, LogOut, Shield } from 'lucide-react';
-import { AuthService, NotificationService } from '../services/api';
+import { AttentionService, AuthService, NotificationService } from '../services/api';
 import { Toast } from './ui';
 
-const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+const AttentionBadge = ({ count }: { count?: number }) => {
+  if (!count) return null;
+  return (
+    <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+};
+
+const SidebarItem = ({ to, icon: Icon, label, count }: { to: string, icon: any, label: string, count?: number }) => (
   <NavLink 
     to={to} 
     className={({ isActive }) => 
@@ -18,6 +27,7 @@ const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: 
   >
     <Icon size={20} />
     <span className="font-medium">{label}</span>
+    <AttentionBadge count={count} />
   </NavLink>
 );
 
@@ -27,12 +37,34 @@ export const Layout = () => {
   
   // Notification Logic
   const [lastNotificationCount, setLastNotificationCount] = useState(0);
+  const [attention, setAttention] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<{title: string, message: string} | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    // Initial count
-    setLastNotificationCount(NotificationService.getAll().length);
+    const initNotificationCount = async () => {
+      try {
+        const notifications = await NotificationService.getAll();
+        setLastNotificationCount(notifications.length);
+      } catch (err) {
+        console.error('Failed to load notifications:', err);
+      }
+    };
+    initNotificationCount();
+  }, []);
+
+  useEffect(() => {
+    const loadAttention = async () => {
+      try {
+        setAttention(await AttentionService.getSummary());
+      } catch (err) {
+        console.error('Failed to load attention summary:', err);
+      }
+    };
+
+    loadAttention();
+    const interval = setInterval(loadAttention, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -59,8 +91,14 @@ export const Layout = () => {
       }
     };
 
-    const interval = setInterval(() => {
-      const all = NotificationService.getAll();
+    const interval = setInterval(async () => {
+      let all = [];
+      try {
+        all = await NotificationService.getAll();
+      } catch (err) {
+        console.error('Failed to refresh notifications:', err);
+        return;
+      }
       if (all.length > lastNotificationCount) {
         const latest = all[0];
         setToast({ title: latest.title, message: latest.message });
@@ -95,10 +133,10 @@ export const Layout = () => {
         
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
           <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" />
-          <SidebarItem to="/complaints" icon={FileText} label="My Assignments" />
+          <SidebarItem to="/complaints" icon={FileText} label="My Assignments" count={attention.complaints} />
           <SidebarItem to="/resolved" icon={CheckCircle} label="Resolved History" />
-          <SidebarItem to="/notifications" icon={Bell} label="Notifications" />
-          <SidebarItem to="/profile" icon={User} label="My Profile" />
+          <SidebarItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} />
+          <SidebarItem to="/profile" icon={User} label="My Profile" count={attention.profile} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">

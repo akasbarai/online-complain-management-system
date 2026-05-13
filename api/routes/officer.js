@@ -6,6 +6,47 @@ const router = express.Router();
 
 router.use(authMiddleware('officer'));
 
+router.get('/attention', async (req, res) => {
+  try {
+    const [[assigned]] = await pool.query(
+      "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id = ? AND status = 'Assigned' AND is_trashed = FALSE",
+      [req.user.id]
+    );
+    const [[escalated]] = await pool.query(
+      "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id = ? AND status = 'Escalated' AND is_trashed = FALSE",
+      [req.user.id]
+    );
+    const [[slaRisk]] = await pool.query(
+      `SELECT COUNT(*) as count FROM complaints
+       WHERE assigned_officer_id = ?
+       AND is_trashed = FALSE
+       AND status NOT IN ('Resolved', 'Closed', 'Rejected')
+       AND sla_deadline IS NOT NULL
+       AND sla_deadline <= DATE_ADD(NOW(), INTERVAL 24 HOUR)`,
+      [req.user.id]
+    );
+    const [[notifications]] = await pool.query(
+      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Officers') AND is_read = FALSE"
+    );
+    const [[profile]] = await pool.query(
+      "SELECT COUNT(*) as count FROM officers WHERE id = ? AND (hierarchy_level_id IS NULL OR jurisdiction IS NULL OR jurisdiction = '')",
+      [req.user.id]
+    );
+
+    res.json({
+      notifications: notifications.count,
+      complaints: assigned.count + escalated.count + slaRisk.count,
+      newAssignments: assigned.count,
+      escalatedComplaints: escalated.count,
+      slaRiskComplaints: slaRisk.count,
+      profile: profile.count
+    });
+  } catch (err) {
+    console.error('Officer attention error:', err);
+    res.status(500).json({ error: 'Failed to fetch attention summary' });
+  }
+});
+
 router.get('/complaints', async (req, res) => {
   try {
     const [complaints] = await pool.query(`

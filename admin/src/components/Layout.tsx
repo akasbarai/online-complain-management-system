@@ -5,14 +5,23 @@ import {
   LayoutDashboard, Building2, GitFork, Users, 
   FileText, BarChart3, Bell, UserCheck, LogOut, MessageSquareWarning 
 } from 'lucide-react';
-import { AuthService, NotificationService } from '../services/api';
+import { AttentionService, AuthService, NotificationService } from '../services/api';
 import { Toast } from './ui';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+const AttentionBadge = ({ count }: { count?: number }) => {
+  if (!count) return null;
+  return (
+    <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+};
+
+const SidebarItem = ({ to, icon: Icon, label, count }: { to: string, icon: any, label: string, count?: number }) => (
   <NavLink 
     to={to} 
     className={({ isActive }) => 
@@ -25,6 +34,7 @@ const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: 
   >
     <Icon size={20} />
     <span className="font-medium">{label}</span>
+    <AttentionBadge count={count} />
   </NavLink>
 );
 
@@ -35,6 +45,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   
   // Notification State
   const [lastNotificationCount, setLastNotificationCount] = useState(0);
+  const [attention, setAttention] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<{title: string, message: string} | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -66,6 +77,20 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
     };
     initNotificationCount();
+  }, []);
+
+  useEffect(() => {
+    const loadAttention = async () => {
+      try {
+        setAttention(await AttentionService.getSummary());
+      } catch (err) {
+        console.error('Failed to load attention summary:', err);
+      }
+    };
+
+    loadAttention();
+    const interval = setInterval(loadAttention, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Poll for notifications
@@ -139,13 +164,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
           <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" />
-          <SidebarItem to="/departments" icon={Building2} label="Departments" />
-          <SidebarItem to="/hierarchy" icon={GitFork} label="Hierarchy" />
-          <SidebarItem to="/officers" icon={UserCheck} label="Officers" />
-          <SidebarItem to="/complaints" icon={FileText} label="Complaints" />
+          <SidebarItem to="/departments" icon={Building2} label="Departments" count={attention.departments} />
+          <SidebarItem to="/hierarchy" icon={GitFork} label="Hierarchy" count={attention.hierarchy} />
+          <SidebarItem to="/officers" icon={UserCheck} label="Officers" count={attention.officers} />
+          <SidebarItem to="/complaints" icon={FileText} label="Complaints" count={attention.complaints} />
           <SidebarItem to="/reports" icon={BarChart3} label="Reports & Analytics" />
-          <SidebarItem to="/users" icon={Users} label="Manage Users" />
-          <SidebarItem to="/notifications" icon={Bell} label="Notifications" />
+          <SidebarItem to="/users" icon={Users} label="Manage Users" count={attention.users} />
+          <SidebarItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">

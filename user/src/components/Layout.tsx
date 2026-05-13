@@ -2,10 +2,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import { LayoutDashboard, PlusCircle, LogOut, User, Bell } from 'lucide-react';
-import { AuthService, NotificationService } from '../services/api';
+import { AttentionService, AuthService, NotificationService } from '../services/api';
 import { Toast } from './ui';
 
-const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+const AttentionBadge = ({ count }: { count?: number }) => {
+  if (!count) return null;
+  return (
+    <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+};
+
+const NavItem = ({ to, icon: Icon, label, count }: { to: string, icon: any, label: string, count?: number }) => (
   <NavLink 
     to={to} 
     className={({ isActive }) => 
@@ -18,6 +27,7 @@ const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: stri
   >
     <Icon size={18} />
     <span>{label}</span>
+    <AttentionBadge count={count} />
   </NavLink>
 );
 
@@ -27,6 +37,7 @@ export const Layout = () => {
   
   // Notification State
   const [lastNotificationCount, setLastNotificationCount] = useState(0);
+  const [attention, setAttention] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<{title: string, message: string} | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -40,6 +51,20 @@ export const Layout = () => {
       }
     };
     initNotificationCount();
+  }, []);
+
+  useEffect(() => {
+    const loadAttention = async () => {
+      try {
+        setAttention(await AttentionService.getSummary());
+      } catch (err) {
+        console.error('Failed to load attention summary:', err);
+      }
+    };
+
+    loadAttention();
+    const interval = setInterval(loadAttention, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -111,7 +136,7 @@ export const Layout = () => {
           <div className="flex items-center gap-6">
              <div className="relative cursor-pointer text-slate-500 hover:text-primary-600 transition-colors">
                 <Bell size={20} />
-                {lastNotificationCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                {!!attention.notifications && <span className="absolute -top-2 -right-2 min-w-5 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-5 text-white border-2 border-white">{attention.notifications > 99 ? '99+' : attention.notifications}</span>}
              </div>
              <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
                 <div className="text-right hidden sm:block">
@@ -138,12 +163,12 @@ export const Layout = () => {
          {/* Sidebar Navigation */}
          <aside className="md:col-span-3 lg:col-span-2 space-y-1">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-4">Menu</div>
-            <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem to="/" icon={LayoutDashboard} label="Dashboard" count={attention.dashboard} />
             <NavItem to="/lodge" icon={PlusCircle} label="New Complaint" />
-            <NavItem to="/notifications" icon={Bell} label="Notifications" />
+            <NavItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} />
             
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-6 mb-2 px-4">Account</div>
-            <NavItem to="/profile" icon={User} label="My Profile" />
+            <NavItem to="/profile" icon={User} label="My Profile" count={attention.profile} />
             <button 
                onClick={handleLogout} 
                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mt-2"

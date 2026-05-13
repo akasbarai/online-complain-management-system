@@ -91,6 +91,10 @@ export const NotificationService = {
   clearAll: () => api('/admin/notifications', { method: 'DELETE' })
 };
 
+export const AttentionService = {
+  getSummary: () => api<Record<string, number>>('/admin/attention')
+};
+
 export const ComplaintService = {
   getAll: () => api<Complaint[]>('/admin/complaints'),
   reassign: (complaintId: string, officerId: string, reason: string) =>

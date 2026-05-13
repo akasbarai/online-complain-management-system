@@ -73,3 +73,7 @@ export const NotificationService = {
   getAll: () => api('/user/notifications'),
   markAsRead: (id) => api(`/user/notifications/${id}/read`, { method: 'PUT' })
 };
+
+export const AttentionService = {
+  getSummary: () => api('/user/attention')
+};
