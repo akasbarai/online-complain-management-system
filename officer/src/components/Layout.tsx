@@ -1,0 +1,135 @@
+
+import React, { useState, useEffect, useRef } from 'react';
+import { NavLink, useNavigate, Outlet } from 'react-router-dom';
+import { LayoutDashboard, FileText, CheckCircle, Bell, User, LogOut, Shield } from 'lucide-react';
+import { AuthService, NotificationService } from '../services/api';
+import { Toast } from './ui';
+
+const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+  <NavLink 
+    to={to} 
+    className={({ isActive }) => 
+      `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+        isActive 
+          ? 'bg-primary-600 text-white shadow-md' 
+          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+      }`
+    }
+  >
+    <Icon size={20} />
+    <span className="font-medium">{label}</span>
+  </NavLink>
+);
+
+export const Layout = () => {
+  const navigate = useNavigate();
+  const officer = AuthService.getCurrentOfficer();
+  
+  // Notification Logic
+  const [lastNotificationCount, setLastNotificationCount] = useState(0);
+  const [toast, setToast] = useState<{title: string, message: string} | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    // Initial count
+    setLastNotificationCount(NotificationService.getAll().length);
+  }, []);
+
+  useEffect(() => {
+    const playSound = () => {
+      try {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const ctx = audioContextRef.current;
+        if (ctx.state === 'suspended') ctx.resume();
+        
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      } catch (e) {
+        console.error("Audio play failed", e);
+      }
+    };
+
+    const interval = setInterval(() => {
+      const all = NotificationService.getAll();
+      if (all.length > lastNotificationCount) {
+        const latest = all[0];
+        setToast({ title: latest.title, message: latest.message });
+        playSound();
+        setLastNotificationCount(all.length);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [lastNotificationCount]);
+
+  const handleLogout = () => {
+    AuthService.logout();
+    navigate('/login');
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {toast && (
+        <Toast 
+          title={toast.title} 
+          message={toast.message} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col fixed h-full z-10">
+        <div className="h-16 flex items-center px-6 border-b border-slate-800">
+          <Shield className="text-primary-500 mr-2" size={28} />
+          <h1 className="text-lg font-bold tracking-wide">Officer Panel</h1>
+        </div>
+        
+        <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+          <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" />
+          <SidebarItem to="/complaints" icon={FileText} label="My Assignments" />
+          <SidebarItem to="/resolved" icon={CheckCircle} label="Resolved History" />
+          <SidebarItem to="/notifications" icon={Bell} label="Notifications" />
+          <SidebarItem to="/profile" icon={User} label="My Profile" />
+        </nav>
+
+        <div className="p-4 border-t border-slate-800">
+          <div className="flex items-center space-x-3 mb-4 px-2">
+            {officer?.profilePhoto ? (
+              <img src={officer.profilePhoto} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-slate-600" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-sm font-bold">
+                {officer?.name.charAt(0)}
+              </div>
+            )}
+            <div className="overflow-hidden">
+              <p className="text-sm font-medium text-white truncate">{officer?.name}</p>
+              <p className="text-xs text-slate-400 truncate">{officer?.role}</p>
+            </div>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-md transition-colors text-sm"
+          >
+            <LogOut size={16} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 ml-64 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 overflow-auto p-8">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+};
