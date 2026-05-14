@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS complaints (
     department_id VARCHAR(50) NOT NULL,
     user_id VARCHAR(50) NOT NULL,
     location VARCHAR(255),
-    image_url VARCHAR(500),
+    image_url LONGTEXT,
     status ENUM('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected') DEFAULT 'Submitted',
     priority ENUM('Unassigned', 'Low', 'Medium', 'High', 'Critical') DEFAULT 'Medium',
     assigned_officer_id VARCHAR(50) DEFAULT NULL,
@@ -118,3 +118,4 @@ CREATE INDEX idx_complaints_sla ON complaints(sla_deadline);
 -- Migration: Fix base64 image storage (run if DB already exists)
 -- ALTER TABLE users MODIFY COLUMN profile_picture LONGTEXT;
 -- ALTER TABLE users MODIFY COLUMN id_card_url LONGTEXT;
+-- ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT;

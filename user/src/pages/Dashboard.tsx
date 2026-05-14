@@ -76,7 +76,7 @@ export const Dashboard = () => {
                <p className="text-sm text-slate-600 line-clamp-2 mb-4 pl-3 max-w-2xl">{c.description}</p>
                
                <div className="border-t border-slate-100 pt-3 flex flex-col gap-2 pl-3">
-                  {c.history.slice(-1).map((h, i) => (
+                  {(c.history ?? []).slice(-1).map((h, i) => (
                     <div key={i} className="text-xs flex items-center gap-2 text-slate-500">
                        <div className="w-2 h-2 rounded-full bg-primary-500"></div>
                        <span>Latest: <span className="font-medium text-slate-700">{h.action}</span></span>

@@ -15,7 +15,8 @@ const PORT = process.env.PORT || 4000;
 const ensureMigrations = async () => {
   const migrations = [
     "ALTER TABLE users ADD COLUMN password_reset_requested BOOLEAN DEFAULT FALSE",
-    "ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME DEFAULT NULL"
+    "ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME DEFAULT NULL",
+    "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT"
   ];
 
   for (const sql of migrations) {
@@ -51,6 +52,10 @@ app.use('/api/user', userRoutes);
 app.use('/api/public', publicRoutes);
 
 app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Uploaded evidence is too large. Please choose a smaller file.' });
+  }
+
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });

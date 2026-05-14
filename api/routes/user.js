@@ -45,6 +45,16 @@ router.get('/complaints', async (req, res) => {
       ORDER BY c.created_at DESC
     `, [req.user.id]);
 
+    const complaintIds = complaints.map(c => c.id);
+    let history = [];
+    if (complaintIds.length > 0) {
+      const [historyRows] = await pool.query(
+        'SELECT * FROM complaint_history WHERE complaint_id IN (?) ORDER BY created_at ASC',
+        [complaintIds]
+      );
+      history = historyRows;
+    }
+
     const formatted = complaints.map(c => ({
       id: c.id,
       title: c.title,
@@ -60,7 +70,13 @@ router.get('/complaints', async (req, res) => {
       currentHierarchyLevelId: c.current_hierarchy_level_id,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
-      slaDeadline: c.sla_deadline
+      slaDeadline: c.sla_deadline,
+      history: history.filter(h => h.complaint_id === c.id).map(h => ({
+        date: h.created_at,
+        action: h.action,
+        actor: h.actor,
+        details: h.details
+      }))
     }));
 
     res.json(formatted);
@@ -115,18 +131,44 @@ router.get('/complaints/:id', async (req, res) => {
 router.post('/complaints', async (req, res) => {
   try {
     const { title, description, departmentId, location, imageUrl } = req.body;
-    const id = `C${Math.floor(1000 + Math.random() * 9000)}`;
 
-    await pool.query(
-      `INSERT INTO complaints (id, title, description, department_id, user_id, location, image_url, priority, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), NOW())`,
-      [id, title, description, departmentId, req.user.id, location || null, imageUrl || null]
+    if (!title || !description || !departmentId || !location) {
+      return res.status(400).json({ error: 'Title, department, description, and location are required' });
+    }
+
+    const [departments] = await pool.query(
+      "SELECT id FROM departments WHERE id = ? AND status = 'Active'",
+      [departmentId]
     );
 
-    await pool.query(
-      'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
-      [id, 'Complaint Submitted', req.user.name, 'Submitted via Citizen Portal']
-    );
+    if (departments.length === 0) {
+      return res.status(400).json({ error: 'Please select a valid active department' });
+    }
+
+    const id = `C${Date.now()}`;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      await connection.query(
+        `INSERT INTO complaints (id, title, description, department_id, user_id, location, image_url, priority, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), NOW())`,
+        [id, title, description, departmentId, req.user.id, location || null, imageUrl || null]
+      );
+
+      await connection.query(
+        'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
+        [id, 'Complaint Submitted', req.user.name, 'Submitted via Citizen Portal']
+      );
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
 
     res.status(201).json({
       id, title, departmentId, userId: req.user.id, description, location, imageUrl,
