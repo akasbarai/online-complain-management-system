@@ -2,6 +2,7 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { VerifyAccount } from './pages/VerifyAccount';
@@ -55,13 +56,14 @@ function App() {
   return (
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify" element={<VerifyAccount />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         
-        <Route path="/" element={<ProtectedLayout />}>
-          <Route index element={<Dashboard />} />
+        <Route element={<ProtectedLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="lodge" element={<LodgeComplaint />} />
           <Route path="complaints/:id" element={<ComplaintDetails />} />
           <Route path="profile" element={<Profile />} />

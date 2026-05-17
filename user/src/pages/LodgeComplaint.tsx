@@ -35,7 +35,7 @@ export const LodgeComplaint = () => {
     e.preventDefault();
     try {
       await ComplaintService.lodge(formData);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       alert(err.message);
     }
@@ -169,7 +169,7 @@ export const LodgeComplaint = () => {
                 </div>
 
                 <div className="pt-4 flex justify-end gap-3 border-t">
-                   <Button type="button" variant="ghost" onClick={() => navigate('/')}>Cancel</Button>
+                   <Button type="button" variant="ghost" onClick={() => navigate('/dashboard')}>Cancel</Button>
                    <Button type="submit" className="px-8">Submit Complaint</Button>
                 </div>
              </form>

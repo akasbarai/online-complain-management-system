@@ -20,7 +20,7 @@ export const Login = () => {
     setLoading(true);
     try {
       await AuthService.login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message);
     } finally {

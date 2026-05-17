@@ -18,7 +18,7 @@ export const ComplaintDetails = () => {
     if (id) {
       ComplaintService.getById(id)
         .then(data => setComplaint(data))
-        .catch(() => navigate('/'))
+        .catch(() => navigate('/dashboard'))
         .finally(() => setLoading(false));
     }
   }, [id, navigate]);
@@ -58,7 +58,7 @@ export const ComplaintDetails = () => {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate('/')} className="pl-0 text-slate-500 hover:text-slate-800">
+      <Button variant="ghost" onClick={() => navigate('/dashboard')} className="pl-0 text-slate-500 hover:text-slate-800">
         <ArrowLeft size={16} className="mr-2" /> Back to Dashboard
       </Button>
 

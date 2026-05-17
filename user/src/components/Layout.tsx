@@ -163,7 +163,7 @@ export const Layout = () => {
          {/* Sidebar Navigation */}
          <aside className="md:col-span-3 lg:col-span-2 space-y-1">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-4">Menu</div>
-            <NavItem to="/" icon={LayoutDashboard} label="Dashboard" count={attention.dashboard} />
+            <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" count={attention.dashboard} />
             <NavItem to="/lodge" icon={PlusCircle} label="New Complaint" />
             <NavItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} />
             
