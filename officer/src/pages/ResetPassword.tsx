@@ -33,7 +33,7 @@ export const ResetPassword = () => {
     }
   }, [token]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
       alert("Passwords do not match!");
@@ -46,11 +46,11 @@ export const ResetPassword = () => {
 
     if (token) {
       try {
-        AuthService.confirmPasswordReset(token, passwords.new);
+        await AuthService.confirmPasswordReset(token, passwords.new);
         setStatus('success');
-      } catch (err) {
+      } catch (err: any) {
         setStatus('error');
-        setErrorMsg('Failed to update password.');
+        setErrorMsg(err.message || 'Failed to update password.');
       }
     }
   };

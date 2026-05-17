@@ -1,5 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
@@ -232,7 +234,7 @@ router.post('/officers', async (req, res) => {
     const [existing] = await pool.query('SELECT id FROM officers WHERE email = ?', [email.toLowerCase()]);
     if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
 
-    const tempPassword = Math.random().toString(36).slice(-8);
+    const tempPassword = crypto.randomBytes(6).toString('base64url');
     const passwordHash = await bcrypt.hash(tempPassword, 10);
     const id = `o${Date.now()}`;
 
@@ -247,6 +249,26 @@ router.post('/officers', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create officer' });
+  }
+});
+
+router.post('/officers/:id/password-reset-link', async (req, res) => {
+  try {
+    const [officers] = await pool.query(
+      "SELECT id, email FROM officers WHERE id = ? AND role != 'Admin'",
+      [req.params.id]
+    );
+    if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
+
+    const token = jwt.sign(
+      { id: officers[0].id, email: officers[0].email, accountType: 'officer', purpose: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ token, email: officers[0].email });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create officer password reset link' });
   }
 });
 
@@ -345,7 +367,11 @@ router.post('/users/:id/password-reset-link', async (req, res) => {
     const [users] = await pool.query('SELECT id, email FROM users WHERE id = ?', [req.params.id]);
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const token = `${Date.now()}-${users[0].id}`;
+    const token = jwt.sign(
+      { id: users[0].id, email: users[0].email, accountType: 'user', purpose: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     await pool.query(
       'UPDATE users SET password_reset_requested = FALSE, password_reset_requested_at = NULL WHERE id = ?',

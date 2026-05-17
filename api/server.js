@@ -35,11 +35,20 @@ const allowedOrigins = [
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:3000',
-  'https://ocms.akashbarai.com.np'
+  'https://ocms.akashbarai.com.np',
+  ...(process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
 ];
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));

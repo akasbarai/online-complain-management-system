@@ -65,16 +65,25 @@ export const OfficerService = {
     const officers = await OfficerService.getAll();
     return officers.filter(o => o.hierarchyLevelId === levelId && o.status === 'Active');
   },
-  resetPassword: (id: string) => {
-    const baseUrl = window.location.origin.includes('localhost') ? 'http://localhost:5174' : window.location.origin + '/officer/index.html#';
-    return `${baseUrl}/reset-password?token=${Date.now()}-${id}`;
+  resetPassword: async (id: string) => {
+    const data = await api<{ token: string }>(`/admin/officers/${id}/password-reset-link`, { method: 'POST' });
+    const baseUrl = window.location.origin.includes('localhost')
+      ? 'http://localhost:5174'
+      : `${window.location.origin}/officer`;
+    return `${baseUrl}/#/reset-password?token=${encodeURIComponent(data.token)}`;
   }
 };
 
 export const UserService = {
   getAll: () => api<User[]>('/admin/users'),
   toggleStatus: (id: string, status: string) => api(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
-  verifyUser: (id: string) => api(`/admin/users/${id}/verify`, { method: 'PUT' }),
+  verifyUser: async (id: string) => {
+    await api(`/admin/users/${id}/verify`, { method: 'PUT' });
+    const baseUrl = window.location.origin.includes('localhost')
+      ? 'http://localhost:5175'
+      : window.location.origin.replace(/\/admin.*$/, '');
+    return `${baseUrl}/#/login`;
+  },
   resetPassword: async (id: string) => {
     const data = await api<{ token: string }>(`/admin/users/${id}/password-reset-link`, { method: 'POST' });
     const baseUrl = window.location.origin.includes('localhost')

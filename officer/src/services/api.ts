@@ -46,7 +46,7 @@ export const AuthService = {
     return true;
   },
   confirmPasswordReset: async (token, newPassword) => {
-    await api('/auth/user/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) });
+    await api('/auth/officer/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) });
     return true;
   },
   verifyResetToken: async (_token) => true

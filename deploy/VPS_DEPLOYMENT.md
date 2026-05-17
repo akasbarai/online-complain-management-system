@@ -92,6 +92,13 @@ DB_NAME=civicresolve
 DB_PORT=3306
 JWT_SECRET=CHANGE_ME_LONG_RANDOM_SECRET
 PORT=4000
+CORS_ORIGINS=https://ocms.akashbarai.com.np
+```
+
+Generate a strong JWT secret on the VPS:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
 ## 6. Install API and Seed Admin
@@ -109,6 +116,7 @@ Check API:
 
 ```bash
 curl http://127.0.0.1:4000/health
+curl https://ocms.akashbarai.com.np/health
 ```
 
 ## 7. Build Frontends
@@ -180,6 +188,8 @@ git pull
 cd api
 npm ci
 pm2 restart ocms-api
+curl http://127.0.0.1:4000/health
+curl https://ocms.akashbarai.com.np/health
 
 cd ../user
 npm ci

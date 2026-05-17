@@ -93,8 +93,8 @@ router.get('/complaints/:id', async (req, res) => {
       LEFT JOIN departments d ON c.department_id = d.id
       LEFT JOIN hierarchy_levels hl ON c.current_hierarchy_level_id = hl.id
       LEFT JOIN officers o ON c.assigned_officer_id = o.id
-      WHERE c.id = ?
-    `, [req.params.id]);
+      WHERE c.id = ? AND c.assigned_officer_id = ? AND c.is_trashed = FALSE
+    `, [req.params.id, req.user.id]);
 
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
 
@@ -131,10 +131,12 @@ router.put('/complaints/:id/status', async (req, res) => {
   try {
     const { status, remark } = req.body;
 
-    await pool.query(
+    const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
       [status, req.params.id, req.user.id]
     );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
@@ -157,10 +159,12 @@ router.put('/complaints/:id/escalate', async (req, res) => {
   try {
     const { reason } = req.body;
 
-    await pool.query(
+    const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
       ['Escalated', req.params.id, req.user.id]
     );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',

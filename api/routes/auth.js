@@ -20,6 +20,14 @@ const generateToken = (user, role) => {
   );
 };
 
+const verifyResetToken = (token, expectedAccountType) => {
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  if (decoded.purpose !== 'password-reset' || decoded.accountType !== expectedAccountType || !decoded.id) {
+    throw new Error('Invalid password reset link');
+  }
+  return decoded;
+};
+
 router.post('/user/register', async (req, res) => {
   try {
     const { name, email, mobile, address, password, profilePicture, idCardUrl } = req.body;
@@ -184,22 +192,14 @@ router.put('/user/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const parts = token.split('-');
-    if (parts.length < 2) {
-      return res.status(400).json({ error: 'Invalid token format' });
+    let decoded;
+    try {
+      decoded = verifyResetToken(token, 'user');
+    } catch {
+      return res.status(400).json({ error: 'Invalid or expired password reset link' });
     }
 
-    const issuedAt = Number(parts[0]);
-    if (!Number.isFinite(issuedAt)) {
-      return res.status(400).json({ error: 'Invalid token format' });
-    }
-
-    const maxAgeMs = 24 * 60 * 60 * 1000;
-    if (Date.now() - issuedAt > maxAgeMs) {
-      return res.status(400).json({ error: 'Password reset link has expired' });
-    }
-
-    const userId = parts.slice(1).join('-');
+    const userId = decoded.id;
     const [users] = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);
     if (users.length === 0) {
       return res.status(400).json({ error: 'Invalid password reset link' });
@@ -215,6 +215,40 @@ router.put('/user/reset-password', async (req, res) => {
     res.json({ message: 'Password updated successfully.' });
   } catch (err) {
     console.error('Password reset error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+router.put('/officer/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Reset token and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyResetToken(token, 'officer');
+    } catch {
+      return res.status(400).json({ error: 'Invalid or expired password reset link' });
+    }
+
+    const [officers] = await pool.query("SELECT id FROM officers WHERE id = ? AND role != 'Admin'", [decoded.id]);
+    if (officers.length === 0) {
+      return res.status(400).json({ error: 'Invalid password reset link' });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await pool.query('UPDATE officers SET password_hash = ? WHERE id = ?', [passwordHash, decoded.id]);
+
+    res.json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('Officer password reset error:', err);
     res.status(500).json({ error: 'Failed to reset password' });
   }
 });
