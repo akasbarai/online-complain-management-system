@@ -11,6 +11,9 @@ import {
 import { Button } from '../components/ui';
 import { AuthService } from '../services/api';
 
+const getPortalHref = (productionPath: string, devUrl: string) =>
+  window.location.hostname === 'localhost' ? devUrl : productionPath;
+
 const portalLinks = [
   {
     title: 'Citizen Portal',
@@ -21,13 +24,13 @@ const portalLinks = [
   {
     title: 'Officer Portal',
     description: 'Review assigned complaints, update progress, and resolve cases.',
-    href: 'http://localhost:5174',
+    href: getPortalHref('/officer/', 'http://localhost:5174'),
     icon: ShieldCheck,
   },
   {
     title: 'Admin Portal',
     description: 'Manage departments, officers, users, assignments, and reports.',
-    href: 'http://localhost:5173',
+    href: getPortalHref('/admin/', 'http://localhost:5173'),
     icon: Building2,
   },
 ];
