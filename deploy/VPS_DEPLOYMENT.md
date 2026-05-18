@@ -71,15 +71,15 @@ EXIT;
 Import schema:
 
 ```bash
-mysql -u ocms_user -p civicresolve < backend/database/schema.sql
+mysql -u ocms_user -p civicresolve < database/schema.sql
 ```
 
 ## 5. Configure API Environment
 
-Create `/opt/ocms/backend/api/.env`:
+Create `/opt/ocms/api/.env`:
 
 ```bash
-nano /opt/ocms/backend/api/.env
+nano /opt/ocms/api/.env
 ```
 
 Use this template:
@@ -104,7 +104,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ## 6. Install API and Seed Admin
 
 ```bash
-cd /opt/ocms/backend/api
+cd /opt/ocms/api
 npm ci
 node seed-admin.js
 pm2 start ecosystem.config.cjs
@@ -122,15 +122,15 @@ curl https://ocms.akashbarai.com.np/health
 ## 7. Build Frontends
 
 ```bash
-cd /opt/ocms/frontend/user
+cd /opt/ocms/user
 npm ci
 npm run build
 
-cd /opt/ocms/frontend/admin
+cd /opt/ocms/admin
 npm ci
 npm run build
 
-cd /opt/ocms/frontend/officer
+cd /opt/ocms/officer
 npm ci
 npm run build
 ```
@@ -139,9 +139,9 @@ npm run build
 
 ```bash
 sudo mkdir -p /var/www/ocms/user /var/www/ocms/admin /var/www/ocms/officer
-sudo rsync -a --delete /opt/ocms/frontend/user/dist/ /var/www/ocms/user/
-sudo rsync -a --delete /opt/ocms/frontend/admin/dist/ /var/www/ocms/admin/
-sudo rsync -a --delete /opt/ocms/frontend/officer/dist/ /var/www/ocms/officer/
+sudo rsync -a --delete /opt/ocms/user/dist/ /var/www/ocms/user/
+sudo rsync -a --delete /opt/ocms/admin/dist/ /var/www/ocms/admin/
+sudo rsync -a --delete /opt/ocms/officer/dist/ /var/www/ocms/officer/
 sudo chown -R www-data:www-data /var/www/ocms
 ```
 
@@ -185,13 +185,13 @@ Change this password after first login.
 cd /opt/ocms
 git pull
 
-cd backend/api
+cd api
 npm ci
 pm2 restart ocms-api
 curl http://127.0.0.1:4000/health
 curl https://ocms.akashbarai.com.np/health
 
-cd ../../frontend/user
+cd ../user
 npm ci
 npm run build
 sudo rsync -a --delete dist/ /var/www/ocms/user/

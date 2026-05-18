@@ -25,23 +25,9 @@ export enum Priority {
   CRITICAL = 'Critical'
 }
 
-export interface Department {
-  id: string;
-  name: string;
-  description: string;
-  status: Status;
-  stats: {
-    complaints: number;
-    officers: number;
-  };
-}
-
 export interface HierarchyLevel {
   id: string;
-  departmentId: string;
   name: string;
-  parentId: string | null;
-  status: Status;
   levelDepth: number;
 }
 
@@ -55,21 +41,17 @@ export interface Officer {
   jurisdiction?: string;
   status: Status;
   profilePhoto?: string;
+  // Denormalized fields for Officer App context
+  designation?: string; 
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  mobile?: string;
-  address?: string;
   registeredDate: string;
   status: Status;
-  complaintCount: number;
-  profilePicture?: string;
-  idCardUrl?: string;
-  passwordResetRequested?: boolean;
-  passwordResetRequestedAt?: string | null;
+  complaintCount?: number;
 }
 
 export interface Complaint {
@@ -81,9 +63,9 @@ export interface Complaint {
   location?: string;
   imageUrl?: string;
   status: ComplaintStatus;
+  priority?: Priority;
   assignedOfficerId: string | null;
   currentHierarchyLevelId: string | null;
-  priority?: Priority;
   createdAt: string;
   updatedAt: string;
   history: Array<{
@@ -93,15 +75,6 @@ export interface Complaint {
   }>;
   slaDeadline?: string;
   slaBreached?: boolean;
-  isTrashed?: boolean;
-}
-
-export interface EscalationRule {
-  id: string;
-  departmentId: string;
-  hierarchyLevelId: string;
-  timeLimitHours: number;
-  targetLevelId: string;
 }
 
 export interface Notification {

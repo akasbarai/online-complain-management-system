@@ -151,7 +151,7 @@ DB_PASSWORD=password
 DB_NAME=database
 ```
 
-If your provider says SSL is required, your current API may need a small `mysql2` SSL config change in `backend/api/db/connection.js`.
+If your provider says SSL is required, your current API may need a small `mysql2` SSL config change in `api/db/connection.js`.
 
 Create a database named:
 
@@ -162,10 +162,10 @@ civicresolve
 Then apply the schema:
 
 ```bash
-mysql -h YOUR_DB_HOST -P YOUR_DB_PORT -u YOUR_DB_USER -p civicresolve < backend/database/schema.sql
+mysql -h YOUR_DB_HOST -P YOUR_DB_PORT -u YOUR_DB_USER -p civicresolve < database/schema.sql
 ```
 
-The API also runs JavaScript migrations on startup, but applying `backend/database/schema.sql` is still the easiest first setup path.
+The API also runs JavaScript migrations on startup, but applying `database/schema.sql` is still the easiest first setup path.
 
 ## 2. Push the Project to GitHub
 
@@ -173,9 +173,9 @@ Render deploys from a Git provider.
 
 1. Commit your latest code.
 2. Push the repository to GitHub, GitLab, or Bitbucket.
-3. Make sure the root repository contains `backend/api`.
+3. Make sure the root repository contains the `api` folder.
 
-Important: this repo currently also has a nested `ocms/` copy. Deploy from `backend/api` unless you intentionally want to deploy the nested copy.
+Important: this repo currently also has a nested `ocms/` copy. Deploy from the root-level `api` folder unless you intentionally want to deploy the nested copy.
 
 ## 3. Create a Render Web Service
 
@@ -188,7 +188,7 @@ Important: this repo currently also has a nested `ocms/` copy. Deploy from `back
 ```text
 Name: ocms-api
 Runtime: Node
-Root Directory: backend/api
+Root Directory: api
 Build Command: npm install
 Start Command: npm start
 ```
@@ -289,7 +289,7 @@ Email: admin@civicresolve.com
 Password: value from ADMIN_PASSWORD
 ```
 
-If `ADMIN_PASSWORD` is not set, check `backend/api/seed-admin.js` before using the seeded account.
+If `ADMIN_PASSWORD` is not set, check `api/seed-admin.js` before using the seeded account.
 
 ## 7. Update Vercel Frontend Environment Variables
 
@@ -398,10 +398,10 @@ It should show your hosted MySQL host instead.
 Also check the Render service **Root Directory**. If logs mention this path:
 
 ```text
-/opt/render/project/src/backend/api/server.js
+/opt/render/project/src/api/server.js
 ```
 
-then Render is deploying the intended `backend/api` folder.
+then Render is deploying the root-level `api` folder.
 
 If logs mention this path:
 
@@ -414,7 +414,7 @@ then Render is deploying the nested `ocms/api` folder.
 Use only one backend folder. Recommended:
 
 ```text
-Root Directory: backend/api
+Root Directory: api
 ```
 
 If you keep deploying `ocms/api`, make sure any fixes are also present inside `ocms/api`.
@@ -442,5 +442,5 @@ Before using the system seriously:
 - Use a managed MySQL database with backups enabled.
 - Restrict database network access where your provider allows it.
 - Fix the current fake user verification page before relying on account verification.
-- Keep `backend/api/.env` out of Git.
+- Keep `api/.env` out of Git.
 - Do not deploy the nested `ocms/` copy unless it is intentional.

@@ -14,9 +14,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
-!frontend/user/.env.production
-!frontend/admin/.env.production
-!frontend/officer/.env.production
+!user/.env.production
+!admin/.env.production
+!officer/.env.production
 
 # Editor directories and files
 .vscode/*

@@ -3,12 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "vercel-build": "npm --prefix frontend/user ci && npm --prefix frontend/admin ci && npm --prefix frontend/officer ci && npm --prefix frontend/user run build && npm --prefix frontend/admin run build && npm --prefix frontend/officer run build && node scripts/prepare-vercel-static.js",
-    "api:dev": "npm --prefix backend/api run dev",
-    "api:start": "npm --prefix backend/api start",
-    "api:test": "npm --prefix backend/api test",
-    "admin:dev": "npm --prefix frontend/admin run dev",
-    "officer:dev": "npm --prefix frontend/officer run dev",
-    "user:dev": "npm --prefix frontend/user run dev"
+    "vercel-build": "npm --prefix user ci && npm --prefix admin ci && npm --prefix officer ci && npm --prefix user run build && npm --prefix admin run build && npm --prefix officer run build && node scripts/prepare-vercel-static.js"
   }
 }

@@ -13,18 +13,6 @@ A full-stack complaint management system with three role-based portals backed by
 | **Database** | MySQL 8.0 with connection pooling |
 | **Auth** | JWT tokens + bcrypt password hashing |
 
-### Project Structure
-
-```text
-frontend/
-  admin/      Admin React/Vite portal
-  officer/    Officer React/Vite portal
-  user/       Citizen React/Vite portal
-backend/
-  api/        Node/Express API
-  database/   MySQL schema
-```
-
 ### Portals
 
 | Portal | Port | Purpose |
@@ -73,7 +61,7 @@ Enter your root password. If you see `1` as output, MySQL is running.
 ### Option A: Using MySQL Command Line
 
 ```bash
-mysql -u root -p < backend/database/schema.sql
+mysql -u root -p < database/schema.sql
 ```
 
 Enter your MySQL root password when prompted. This will:
@@ -86,7 +74,7 @@ Enter your MySQL root password when prompted. This will:
 1. Open **MySQL Workbench**
 2. Connect to your local MySQL instance
 3. Go to **File → Open SQL Script**
-4. Select `backend/database/schema.sql` from the project
+4. Select `database/schema.sql` from the project
 5. Click the **Execute** button (lightning bolt icon) or press `Ctrl+Shift+Enter`
 
 ### Option C: Manual SQL Execution
@@ -95,7 +83,7 @@ Enter your MySQL root password when prompted. This will:
 mysql -u root -p
 ```
 
-Then paste the contents of `backend/database/schema.sql` and press Enter.
+Then paste the contents of `database/schema.sql` and press Enter.
 
 ### Verify Tables Were Created
 
@@ -124,9 +112,9 @@ You should see these 8 tables:
 
 ## Step 3: Configure the API to Connect to the Database
 
-1. Navigate to the API folder:
+1. Navigate to the `api` folder:
    ```bash
-   cd backend/api
+   cd api
    ```
 
 2. Install backend dependencies:
@@ -136,7 +124,7 @@ You should see these 8 tables:
 
 3. Edit the `.env` file:
 
-   Open `backend/api/.env` and update these values:
+   Open `api/.env` and update these values:
 
    ```env
    DB_HOST=localhost
@@ -168,11 +156,11 @@ You should see these 8 tables:
 ### How the Connection Works
 
 ```
-backend/api/server.js
+api/server.js
     ↓ loads environment
-backend/api/.env  (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+api/.env  (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
     ↓ creates pool
-backend/api/db/connection.js  (mysql.createPool)
+api/db/connection.js  (mysql.createPool)
     ↓ connects to
 MySQL Server (localhost:3306) → civicresolve database
 ```
@@ -185,7 +173,7 @@ The connection pool (`mysql2/promise`) handles:
 ### Test the Database Connection
 
 ```bash
-cd backend/api
+cd api
 node -e "require('dotenv').config(); const mysql = require('mysql2/promise'); (async () => { const c = await mysql.createConnection({ host: process.env.DB_HOST, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME }); console.log('Connected!'); await c.end(); })();"
 ```
 
@@ -198,7 +186,7 @@ If you see `Connected!`, your database credentials are correct.
 Since the database starts empty, you need an admin account to log in.
 
 ```bash
-cd backend/api
+cd api
 node seed-admin.js
 ```
 
@@ -215,7 +203,7 @@ This will:
 ## Step 5: Start the API Server
 
 ```bash
-cd backend/api
+cd api
 npm run dev
 ```
 
@@ -237,7 +225,7 @@ Expected response:
 
 If it says `"database":"Failed"`, check:
 - MySQL is running
-- `backend/api/.env` has the correct `DB_PASSWORD`
+- `api/.env` has the correct `DB_PASSWORD`
 - The `civicresolve` database exists (`SHOW DATABASES;` in MySQL)
 
 ---
@@ -248,7 +236,7 @@ Open **3 separate terminal windows**:
 
 ### Terminal 1 — Admin Portal
 ```bash
-cd frontend/admin
+cd admin
 npm install
 npm run dev
 ```
@@ -256,7 +244,7 @@ Open: `http://localhost:5173`
 
 ### Terminal 2 — Officer Portal
 ```bash
-cd frontend/officer
+cd officer
 npm install
 npm run dev
 ```
@@ -264,7 +252,7 @@ Open: `http://localhost:5174`
 
 ### Terminal 3 — User/Citizen Portal
 ```bash
-cd frontend/user
+cd user
 npm install
 npm run dev
 ```
@@ -498,7 +486,7 @@ notifications
   ```bash
   mysql -u root -p -e "SELECT 1;"
   ```
-- Check `backend/api/.env` has the correct `DB_PASSWORD`
+- Check `api/.env` has the correct `DB_PASSWORD`
 - Verify the database exists:
   ```sql
   SHOW DATABASES;
@@ -514,7 +502,7 @@ notifications
   ```
 
 ### API health check fails
-- Run `cd backend/api && npm run dev` and check the console for errors
+- Run `cd api && npm run dev` and check the console for errors
 - Ensure MySQL is running and `.env` credentials are correct
 
 ### Frontend shows "Request failed"
@@ -529,7 +517,7 @@ notifications
 
 ### CORS errors in browser
 - API allows: `localhost:5173`, `localhost:5174`, `localhost:5175`, `localhost:3000`
-- If using different ports, update CORS in `backend/api/server.js`
+- If using different ports, update CORS in `api/server.js`
 
 ---
 
