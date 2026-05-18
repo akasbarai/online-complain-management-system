@@ -4,7 +4,20 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
+const { createId } = require('../utils/id');
+const {
+  isValidEmail,
+  normalizeEmail,
+  validateEnum,
+  validateRequired
+} = require('../utils/validation');
 const router = express.Router();
+
+const USER_STATUSES = ['Active', 'Inactive', 'Blocked', 'Pending'];
+const COMPLAINT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected'];
+const PRIORITIES = ['Unassigned', 'Low', 'Medium', 'High', 'Critical'];
+const NOTIFICATION_TARGETS = ['All', 'Users', 'Officers'];
+const NOTIFICATION_PRIORITIES = ['Normal', 'Important', 'Urgent'];
 
 router.use(authMiddleware('admin'));
 
@@ -86,11 +99,14 @@ router.get('/departments', async (req, res) => {
 router.post('/departments', async (req, res) => {
   try {
     const { name, description } = req.body;
-    const id = `d${Date.now()}`;
+    const requiredError = validateRequired({ name });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
-    await pool.query('INSERT INTO departments (id, name, description) VALUES (?, ?, ?)', [id, name, description || '']);
+    const id = createId('d-');
 
-    res.status(201).json({ id, name, description, status: 'Active', stats: { complaints: 0, officers: 0 } });
+    await pool.query('INSERT INTO departments (id, name, description) VALUES (?, ?, ?)', [id, name.trim(), description || '']);
+
+    res.status(201).json({ id, name: name.trim(), description, status: 'Active', stats: { complaints: 0, officers: 0 } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'Department name already exists' });
@@ -155,6 +171,8 @@ router.get('/hierarchy', async (req, res) => {
 router.post('/hierarchy', async (req, res) => {
   try {
     const { departmentId, name, parentId } = req.body;
+    const requiredError = validateRequired({ departmentId, name });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
     if (parentId) {
       const [parent] = await pool.query('SELECT level_depth FROM hierarchy_levels WHERE id = ?', [parentId]);
@@ -164,7 +182,7 @@ router.post('/hierarchy', async (req, res) => {
       var levelDepth = 0;
     }
 
-    const id = `h${Date.now()}`;
+    const id = createId('h-');
     await pool.query(
       'INSERT INTO hierarchy_levels (id, department_id, name, parent_id, level_depth) VALUES (?, ?, ?, ?, ?)',
       [id, departmentId, name, parentId || null, levelDepth]
@@ -230,21 +248,25 @@ router.get('/officers', async (req, res) => {
 router.post('/officers', async (req, res) => {
   try {
     const { name, email, departmentId, hierarchyLevelId, role, jurisdiction } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const requiredError = validateRequired({ name, email: normalizedEmail, departmentId });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+    if (!isValidEmail(normalizedEmail)) return res.status(400).json({ error: 'A valid email is required' });
 
-    const [existing] = await pool.query('SELECT id FROM officers WHERE email = ?', [email.toLowerCase()]);
+    const [existing] = await pool.query('SELECT id FROM officers WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) return res.status(400).json({ error: 'Email already exists' });
 
     const tempPassword = crypto.randomBytes(6).toString('base64url');
     const passwordHash = await bcrypt.hash(tempPassword, 10);
-    const id = `o${Date.now()}`;
+    const id = createId('o-');
 
     await pool.query(
       'INSERT INTO officers (id, name, email, password_hash, department_id, hierarchy_level_id, role, jurisdiction, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, name, email.toLowerCase(), passwordHash, departmentId, hierarchyLevelId || null, role || 'Officer', jurisdiction || null, 'Active']
+      [id, name.trim(), normalizedEmail, passwordHash, departmentId, hierarchyLevelId || null, role || 'Officer', jurisdiction || null, 'Active']
     );
 
     res.status(201).json({
-      officer: { id, name, email, departmentId, hierarchyLevelId, role: role || 'Officer', jurisdiction, status: 'Active' },
+      officer: { id, name: name.trim(), email: normalizedEmail, departmentId, hierarchyLevelId, role: role || 'Officer', jurisdiction, status: 'Active' },
       password: tempPassword
     });
   } catch (err) {
@@ -336,6 +358,9 @@ router.get('/users', async (req, res) => {
 router.put('/users/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
+    const statusError = validateEnum(status, USER_STATUSES, 'Status');
+    if (statusError) return res.status(400).json({ error: statusError });
+
     await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, req.params.id]);
     
     if (status === 'Blocked') {
@@ -343,7 +368,7 @@ router.put('/users/:id/status', async (req, res) => {
       const userName = users.length > 0 ? users[0].name : 'User';
       await pool.query(
         "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-        [`n${Date.now()}`, 'Account Suspended', `Dear ${userName}, your account has been suspended by the administrator. Please contact support for assistance.`]
+        [createId('n-'), 'Account Suspended', `Dear ${userName}, your account has been suspended by the administrator. Please contact support for assistance.`]
       );
     }
     
@@ -449,6 +474,8 @@ router.get('/complaints', async (req, res) => {
 router.put('/complaints/:id/reassign', async (req, res) => {
   try {
     const { officerId, reason } = req.body;
+    const requiredError = validateRequired({ officerId, reason });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
     const [officers] = await pool.query('SELECT hierarchy_level_id FROM officers WHERE id = ?', [officerId]);
     if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
@@ -471,7 +498,7 @@ router.put('/complaints/:id/reassign', async (req, res) => {
 
     await pool.query(
       "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Officers')",
-      [`n${Date.now()}`, 'New Complaint Assigned', `Complaint #${req.params.id} has been assigned to you.`]
+      [createId('n-'), 'New Complaint Assigned', `Complaint #${req.params.id} has been assigned to you.`]
     );
 
     res.json({ message: 'Complaint reassigned' });
@@ -484,6 +511,8 @@ router.put('/complaints/:id/reassign', async (req, res) => {
 router.put('/complaints/:id/status', async (req, res) => {
   try {
     const { status, notes } = req.body;
+    const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
+    if (statusError) return res.status(400).json({ error: statusError });
 
     await pool.query(
       `UPDATE complaints SET 
@@ -508,6 +537,9 @@ router.put('/complaints/:id/status', async (req, res) => {
 router.put('/complaints/:id/priority', async (req, res) => {
   try {
     const { priority } = req.body;
+    const priorityError = validateEnum(priority, PRIORITIES, 'Priority');
+    if (priorityError) return res.status(400).json({ error: priorityError });
+
     await pool.query('UPDATE complaints SET priority = ?, updated_at = NOW() WHERE id = ?', [priority, req.params.id]);
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor) VALUES (?, ?, ?)',
@@ -565,12 +597,20 @@ router.get('/notifications', async (req, res) => {
 router.post('/notifications', async (req, res) => {
   try {
     const { title, message, target, priority } = req.body;
-    const id = `n${Date.now()}`;
+    const requiredError = validateRequired({ title, message, target });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+    const targetError = validateEnum(target, NOTIFICATION_TARGETS, 'Target');
+    if (targetError) return res.status(400).json({ error: targetError });
+    const finalPriority = priority || 'Normal';
+    const priorityError = validateEnum(finalPriority, NOTIFICATION_PRIORITIES, 'Priority');
+    if (priorityError) return res.status(400).json({ error: priorityError });
+
+    const id = createId('n-');
     await pool.query(
       'INSERT INTO notifications (id, title, message, target, priority) VALUES (?, ?, ?, ?, ?)',
-      [id, title, message, target, priority || 'Normal']
+      [id, title, message, target, finalPriority]
     );
-    res.status(201).json({ id, title, message, target, priority: priority || 'Normal', date: new Date().toISOString() });
+    res.status(201).json({ id, title, message, target, priority: finalPriority, date: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to send notification' });
   }

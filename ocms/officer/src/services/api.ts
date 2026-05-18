@@ -49,7 +49,7 @@ export const AuthService = {
     await api('/auth/officer/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) });
     return true;
   },
-  verifyResetToken: async (_token) => true
+  verifyResetToken: (token) => api('/auth/officer/reset-password/verify', { method: 'POST', body: JSON.stringify({ token }) })
 };
 
 export const ComplaintService = {

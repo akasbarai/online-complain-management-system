@@ -1,6 +1,9 @@
 const express = require('express');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
+const { createId } = require('../utils/id');
+const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { validatePassword, validateRequired } = require('../utils/validation');
 const router = express.Router();
 
 router.use(authMiddleware('user'));
@@ -14,16 +17,14 @@ router.get('/attention', async (req, res) => {
        AND status IN ('Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Rejected')`,
       [req.user.id]
     );
-    const [[notifications]] = await pool.query(
-      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Users') AND is_read = FALSE"
-    );
+    const notifications = await getUnreadNotificationCount(pool, 'user', req.user.id);
     const [[profile]] = await pool.query(
       "SELECT COUNT(*) as count FROM users WHERE id = ? AND (mobile IS NULL OR mobile = '' OR address IS NULL OR address = '' OR id_card_url IS NULL OR id_card_url = '')",
       [req.user.id]
     );
 
     res.json({
-      notifications: notifications.count,
+      notifications,
       dashboard: activeComplaints.count,
       complaints: activeComplaints.count,
       profile: profile.count
@@ -94,7 +95,7 @@ router.get('/complaints/:id', async (req, res) => {
       LEFT JOIN departments d ON c.department_id = d.id
       LEFT JOIN officers o ON c.assigned_officer_id = o.id
       LEFT JOIN hierarchy_levels hl ON c.current_hierarchy_level_id = hl.id
-      WHERE c.id = ? AND c.user_id = ?
+      WHERE c.id = ? AND c.user_id = ? AND c.is_trashed = FALSE
     `, [req.params.id, req.user.id]);
 
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
@@ -132,9 +133,8 @@ router.post('/complaints', async (req, res) => {
   try {
     const { title, description, departmentId, location, imageUrl } = req.body;
 
-    if (!title || !description || !departmentId || !location) {
-      return res.status(400).json({ error: 'Title, department, description, and location are required' });
-    }
+    const requiredError = validateRequired({ title, departmentId, description, location });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
     const [departments] = await pool.query(
       "SELECT id FROM departments WHERE id = ? AND status = 'Active'",
@@ -145,7 +145,7 @@ router.post('/complaints', async (req, res) => {
       return res.status(400).json({ error: 'Please select a valid active department' });
     }
 
-    const id = `C${Date.now()}`;
+    const id = createId('C-');
     const connection = await pool.getConnection();
 
     try {
@@ -154,7 +154,7 @@ router.post('/complaints', async (req, res) => {
       await connection.query(
         `INSERT INTO complaints (id, title, description, department_id, user_id, location, image_url, priority, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), NOW())`,
-        [id, title, description, departmentId, req.user.id, location || null, imageUrl || null]
+        [id, title.trim(), description.trim(), departmentId, req.user.id, location.trim(), imageUrl || null]
       );
 
       await connection.query(
@@ -171,7 +171,7 @@ router.post('/complaints', async (req, res) => {
     }
 
     res.status(201).json({
-      id, title, departmentId, userId: req.user.id, description, location, imageUrl,
+      id, title: title.trim(), departmentId, userId: req.user.id, description: description.trim(), location: location.trim(), imageUrl,
       status: 'Submitted', priority: 'Medium', assignedOfficerId: null,
       currentHierarchyLevelId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       history: [{ date: new Date().toISOString(), action: 'Complaint Submitted', actor: req.user.name, details: 'Submitted via Citizen Portal' }]
@@ -185,11 +185,14 @@ router.post('/complaints', async (req, res) => {
 router.put('/complaints/:id/withdraw', async (req, res) => {
   try {
     const { reason } = req.body;
+    const requiredError = validateRequired({ reason });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
-    await pool.query(
+    const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND user_id = ?',
       ['Closed', req.params.id, req.user.id]
     );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
@@ -204,17 +207,8 @@ router.put('/complaints/:id/withdraw', async (req, res) => {
 
 router.get('/notifications', async (req, res) => {
   try {
-    const [notifications] = await pool.query(
-      "SELECT * FROM notifications WHERE target IN ('All', 'Users') ORDER BY created_at DESC"
-    );
-    res.json(notifications.map(n => ({
-      id: n.id,
-      title: n.title,
-      message: n.message,
-      date: n.created_at,
-      read: n.is_read === 1,
-      target: n.target
-    })));
+    const notifications = await getNotificationsFor(pool, 'user', req.user.id);
+    res.json(notifications);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
@@ -222,7 +216,7 @@ router.get('/notifications', async (req, res) => {
 
 router.put('/notifications/:id/read', async (req, res) => {
   try {
-    await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = ?', [req.params.id]);
+    await markNotificationRead(pool, 'user', req.user.id, req.params.id);
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update notification' });
@@ -246,8 +240,11 @@ router.put('/password', async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const bcrypt = require('bcryptjs');
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     const [users] = await pool.query('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
+    if (users.length === 0) return res.status(404).json({ error: 'User not found' });
     const valid = await bcrypt.compare(currentPassword, users[0].password_hash);
     if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
 

@@ -2,6 +2,13 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
+const { createId } = require('../utils/id');
+const {
+  isValidEmail,
+  normalizeEmail,
+  validatePassword,
+  validateRequired
+} = require('../utils/validation');
 const router = express.Router();
 
 const hashPassword = async (password) => {
@@ -31,27 +38,34 @@ const verifyResetToken = (token, expectedAccountType) => {
 router.post('/user/register', async (req, res) => {
   try {
     const { name, email, mobile, address, password, profilePicture, idCardUrl } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const requiredError = validateRequired({ name, email: normalizedEmail, password });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+    if (!isValidEmail(normalizedEmail)) return res.status(400).json({ error: 'A valid email is required' });
 
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email.toLowerCase()]);
+    const passwordError = validatePassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
     const passwordHash = await hashPassword(password);
-    const id = `u${Date.now()}`;
+    const id = createId('u-');
 
     await pool.query(
       `INSERT INTO users (id, name, email, mobile, address, password_hash, status, profile_picture, id_card_url, registered_date)
        VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, CURDATE())`,
-      [id, name, email.toLowerCase(), mobile || null, address || null, passwordHash, profilePicture || null, idCardUrl || null]
+      [id, name.trim(), normalizedEmail, mobile || null, address || null, passwordHash, profilePicture || null, idCardUrl || null]
     );
 
-    const token = generateToken({ id, name, email: email.toLowerCase() }, 'user');
+    const token = generateToken({ id, name: name.trim(), email: normalizedEmail }, 'user');
 
     res.status(201).json({
       message: 'Registration successful. Awaiting admin verification.',
       token,
-      user: { id, name, email, mobile, address, status: 'Pending', registeredDate: new Date().toISOString().split('T')[0] }
+      user: { id, name: name.trim(), email: normalizedEmail, mobile, address, status: 'Pending', registeredDate: new Date().toISOString().split('T')[0] }
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -62,8 +76,11 @@ router.post('/user/register', async (req, res) => {
 router.post('/user/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const requiredError = validateRequired({ email: normalizedEmail, password });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email.toLowerCase()]);
+    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
     if (users.length === 0) {
       return res.status(401).json({ error: 'User not found. Please register.' });
     }
@@ -110,8 +127,11 @@ router.post('/user/login', async (req, res) => {
 router.post('/officer/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const requiredError = validateRequired({ email: normalizedEmail, password });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
-    const [officers] = await pool.query('SELECT * FROM officers WHERE email = ?', [email.toLowerCase()]);
+    const [officers] = await pool.query('SELECT * FROM officers WHERE email = ?', [normalizedEmail]);
     if (officers.length === 0) {
       return res.status(401).json({ error: 'Officer account not found.' });
     }
@@ -155,7 +175,10 @@ router.post('/officer/login', async (req, res) => {
 router.post('/user/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-    const [users] = await pool.query('SELECT id, name FROM users WHERE email = ?', [email.toLowerCase()]);
+    const normalizedEmail = normalizeEmail(email);
+    if (!isValidEmail(normalizedEmail)) return res.status(400).json({ error: 'A valid email is required' });
+
+    const [users] = await pool.query('SELECT id, name FROM users WHERE email = ?', [normalizedEmail]);
 
     if (users.length === 0) {
       return res.status(404).json({ error: 'No account found with that email address.' });
@@ -170,13 +193,22 @@ router.post('/user/forgot-password', async (req, res) => {
 
     await pool.query(
       "INSERT INTO notifications (id, title, message, target, priority) VALUES (?, ?, ?, 'Officers', 'Important')",
-      [`n${Date.now()}`, 'Password Reset Requested', `${user.name} (${email.toLowerCase()}) requested a password reset.`]
+      [createId('n-'), 'Password Reset Requested', `${user.name} (${normalizedEmail}) requested a password reset.`]
     );
 
     res.json({ message: 'Password reset request sent to admin.' });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+router.post('/user/reset-password/verify', async (req, res) => {
+  try {
+    verifyResetToken(req.body.token, 'user');
+    res.json({ valid: true });
+  } catch {
+    res.status(400).json({ error: 'Invalid or expired password reset link' });
   }
 });
 
@@ -188,9 +220,8 @@ router.put('/user/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Reset token and new password are required' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     let decoded;
     try {
@@ -219,6 +250,15 @@ router.put('/user/reset-password', async (req, res) => {
   }
 });
 
+router.post('/officer/reset-password/verify', async (req, res) => {
+  try {
+    verifyResetToken(req.body.token, 'officer');
+    res.json({ valid: true });
+  } catch {
+    res.status(400).json({ error: 'Invalid or expired password reset link' });
+  }
+});
+
 router.put('/officer/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
@@ -227,9 +267,8 @@ router.put('/officer/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Reset token and new password are required' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     let decoded;
     try {

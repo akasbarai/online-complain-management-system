@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Card, Button, Input } from '../components/ui';
 import { AuthService } from '../services/api';
@@ -10,8 +10,18 @@ export const ResetPassword = () => {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'validating' | 'idle' | 'success' | 'error'>('validating');
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    AuthService.verifyResetToken(token)
+      .then(() => setStatus('idle'))
+      .catch((err: any) => {
+        setStatus('error');
+        setMessage(err.message || 'Invalid or expired password reset link.');
+      });
+  }, [token]);
 
   if (!token) {
     return (
@@ -37,9 +47,9 @@ export const ResetPassword = () => {
       setMessage("Passwords do not match.");
       return;
     }
-    if (password.length < 6) {
+    if (password.length < 8) {
       setStatus('error');
-      setMessage("Password must be at least 6 characters.");
+      setMessage("Password must be at least 8 characters.");
       return;
     }
 
@@ -65,6 +75,17 @@ export const ResetPassword = () => {
           <Link to="/login">
             <Button className="w-full">Proceed to Login</Button>
           </Link>
+        </Card>
+      </div>
+    );
+  }
+
+  if (status === 'validating') {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Checking Link</h2>
+          <p className="text-slate-600">Please wait while we verify this reset link.</p>
         </Card>
       </div>
     );

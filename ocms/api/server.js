@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const pool = require('./db/connection');
+const rateLimit = require('./middleware/rateLimit');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -12,18 +13,33 @@ const publicRoutes = require('./routes/public');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'replace_with_a_long_random_string') {
+  console.error('JWT_SECRET must be set to a strong secret before starting the API.');
+  process.exit(1);
+}
+
 const ensureMigrations = async () => {
   const migrations = [
     "ALTER TABLE users ADD COLUMN password_reset_requested BOOLEAN DEFAULT FALSE",
     "ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME DEFAULT NULL",
-    "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT"
+    "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT",
+    `CREATE TABLE IF NOT EXISTS notification_reads (
+      id VARCHAR(50) PRIMARY KEY,
+      notification_id VARCHAR(50) NOT NULL,
+      recipient_type ENUM('User', 'Officer') NOT NULL,
+      recipient_id VARCHAR(50) NOT NULL,
+      read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_notification_recipient (notification_id, recipient_type, recipient_id),
+      FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
+    )`,
+    "CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id)"
   ];
 
   for (const sql of migrations) {
     try {
       await pool.query(sql);
     } catch (err) {
-      if (err.code !== 'ER_DUP_FIELDNAME') {
+      if (!['ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME'].includes(err.code)) {
         throw err;
       }
     }
@@ -62,7 +78,7 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 60, keyPrefix: 'auth' }), authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/officer', officerRoutes);
 app.use('/api/user', userRoutes);

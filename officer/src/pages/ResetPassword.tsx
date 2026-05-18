@@ -21,16 +21,12 @@ export const ResetPassword = () => {
       return;
     }
 
-    try {
-      // Simulate validation
-      const officer = AuthService.verifyResetToken(token);
-      if (officer) {
-        setTimeout(() => setStatus('valid'), 800); // Fake delay
-      }
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMsg(err.message || 'Link invalid or expired.');
-    }
+    AuthService.verifyResetToken(token)
+      .then(() => setStatus('valid'))
+      .catch((err: any) => {
+        setStatus('error');
+        setErrorMsg(err.message || 'Link invalid or expired.');
+      });
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,8 +35,8 @@ export const ResetPassword = () => {
       alert("Passwords do not match!");
       return;
     }
-    if (passwords.new.length < 6) {
-      alert("Password must be at least 6 characters.");
+    if (passwords.new.length < 8) {
+      alert("Password must be at least 8 characters.");
       return;
     }
 
@@ -106,7 +102,7 @@ export const ResetPassword = () => {
                   required 
                   value={passwords.new}
                   onChange={e => setPasswords({...passwords, new: e.target.value})}
-                  placeholder="Minimum 6 characters"
+                  placeholder="Minimum 8 characters"
                 />
               </div>
               <div>

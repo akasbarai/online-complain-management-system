@@ -2,7 +2,12 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
+const { createId } = require('../utils/id');
+const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { validateEnum, validatePassword, validateRequired } = require('../utils/validation');
 const router = express.Router();
+
+const COMPLAINT_STATUSES = ['Under Review', 'In Progress', 'Awaiting Materials', 'Resolved', 'Rejected'];
 
 router.use(authMiddleware('officer'));
 
@@ -25,16 +30,14 @@ router.get('/attention', async (req, res) => {
        AND sla_deadline <= DATE_ADD(NOW(), INTERVAL 24 HOUR)`,
       [req.user.id]
     );
-    const [[notifications]] = await pool.query(
-      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Officers') AND is_read = FALSE"
-    );
+    const notifications = await getUnreadNotificationCount(pool, 'officer', req.user.id);
     const [[profile]] = await pool.query(
       "SELECT COUNT(*) as count FROM officers WHERE id = ? AND (hierarchy_level_id IS NULL OR jurisdiction IS NULL OR jurisdiction = '')",
       [req.user.id]
     );
 
     res.json({
-      notifications: notifications.count,
+      notifications,
       complaints: assigned.count + escalated.count + slaRisk.count,
       newAssignments: assigned.count,
       escalatedComplaints: escalated.count,
@@ -130,6 +133,8 @@ router.get('/complaints/:id', async (req, res) => {
 router.put('/complaints/:id/status', async (req, res) => {
   try {
     const { status, remark } = req.body;
+    const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
+    if (statusError) return res.status(400).json({ error: statusError });
 
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
@@ -145,7 +150,7 @@ router.put('/complaints/:id/status', async (req, res) => {
 
     await pool.query(
       "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-      [`n${Date.now()}`, `Complaint #${req.params.id} Update`, `Status updated to ${status} by ${req.user.name}. ${remark}`]
+      [createId('n-'), `Complaint #${req.params.id} Update`, `Status updated to ${status} by ${req.user.name}. ${remark || ''}`]
     );
 
     res.json({ message: 'Status updated' });
@@ -158,6 +163,8 @@ router.put('/complaints/:id/status', async (req, res) => {
 router.put('/complaints/:id/escalate', async (req, res) => {
   try {
     const { reason } = req.body;
+    const requiredError = validateRequired({ reason });
+    if (requiredError) return res.status(400).json({ error: requiredError });
 
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
@@ -173,7 +180,7 @@ router.put('/complaints/:id/escalate', async (req, res) => {
 
     await pool.query(
       "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-      [`n${Date.now()}`, `Complaint #${req.params.id} Escalated`, `Officer ${req.user.name} has escalated your complaint. Reason: ${reason}`]
+      [createId('n-'), `Complaint #${req.params.id} Escalated`, `Officer ${req.user.name} has escalated your complaint. Reason: ${reason}`]
     );
 
     res.json({ message: 'Complaint escalated' });
@@ -184,19 +191,19 @@ router.put('/complaints/:id/escalate', async (req, res) => {
 
 router.get('/notifications', async (req, res) => {
   try {
-    const [notifications] = await pool.query(
-      "SELECT * FROM notifications WHERE target IN ('All', 'Officers') ORDER BY created_at DESC"
-    );
-    res.json(notifications.map(n => ({
-      id: n.id,
-      title: n.title,
-      message: n.message,
-      target: n.target,
-      date: n.created_at,
-      read: n.is_read === 1
-    })));
+    const notifications = await getNotificationsFor(pool, 'officer', req.user.id);
+    res.json(notifications);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+router.put('/notifications/:id/read', async (req, res) => {
+  try {
+    await markNotificationRead(pool, 'officer', req.user.id, req.params.id);
+    res.json({ message: 'Notification marked as read' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update notification' });
   }
 });
 
@@ -214,6 +221,9 @@ router.put('/profile', async (req, res) => {
 router.put('/password', async (req, res) => {
   try {
     const { newPassword } = req.body;
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await pool.query('UPDATE officers SET password_hash = ? WHERE id = ?', [passwordHash, req.user.id]);
     res.json({ message: 'Password updated' });

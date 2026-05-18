@@ -13,7 +13,7 @@ async function seed() {
   console.log('Connected to database');
 
   // Create admin account
-  const adminPassword = 'admin123';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
   const passwordHash = await bcrypt.hash(adminPassword, 10);
   const adminId = 'admin-001';
 
@@ -40,7 +40,7 @@ async function seed() {
       );
       console.log('Created admin account:');
       console.log('  Email: admin@civicresolve.com');
-      console.log('  Password: admin123');
+      console.log(`  Password: ${adminPassword}`);
     }
   } catch (err) {
     console.error('Error creating admin:', err.message);

@@ -46,6 +46,7 @@ export const AuthService = {
     return current;
   },
   forgotPassword: (email) => api('/auth/user/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  verifyResetToken: (token) => api('/auth/user/reset-password/verify', { method: 'POST', body: JSON.stringify({ token }) }),
   updatePasswordWithToken: (token, newPassword) =>
     api('/auth/user/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) }),
   verifyToken: async (_token) => true
