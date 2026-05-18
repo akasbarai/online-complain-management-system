@@ -21,6 +21,8 @@ Yes, you can host both the database and backend on Render.
 
 Render does not provide MySQL as the same managed database product as Render Postgres, but Render does provide a MySQL template that runs MySQL with a persistent disk. This keeps your backend and database on Render, and the database can be private to Render's network.
 
+Important: this is usually not a free option. Render's MySQL template uses Render Disks, and persistent disks require a paid Render service. If Render asks you to upgrade, use the free Aiven MySQL option below instead.
+
 Use this route if you want one platform for both:
 
 1. Open Render Dashboard.
@@ -57,9 +59,48 @@ Important notes:
 - For production, create regular MySQL backups with `mysqldump`.
 - Render recommends managed Render Postgres if Postgres fits your app, but this project currently uses MySQL, so changing to Postgres would require code/schema changes.
 
-### Simple Option: Host MySQL on Railway
+### Free Option: Host MySQL on Aiven
 
-Railway is one of the easiest options for this project because it provides MySQL connection variables such as `MYSQLHOST` and `MYSQLPORT`.
+Aiven has a free MySQL tier that is enough for demos, college projects, and small testing deployments.
+
+1. Go to Aiven.
+2. Create an account.
+3. Create a new service.
+4. Select **MySQL**.
+5. Choose the **Free** plan.
+6. Wait for the service to finish provisioning.
+7. Open the MySQL service overview.
+8. Copy the connection details:
+
+```text
+Host
+Port
+User
+Password
+Database
+```
+
+Then add them to your Render backend service:
+
+```env
+DB_HOST=AIVEN_HOST
+DB_PORT=AIVEN_PORT
+DB_USER=AIVEN_USER
+DB_PASSWORD=AIVEN_PASSWORD
+DB_NAME=AIVEN_DATABASE
+```
+
+Your Render backend can also use Aiven's MySQL connection URL if Aiven gives you one:
+
+```env
+DATABASE_URL=mysql://USER:PASSWORD@HOST:PORT/DATABASE
+```
+
+Then redeploy the Render backend.
+
+### Alternative Option: Host MySQL on Railway
+
+Railway can also host MySQL. Check its current pricing before using it, because free/trial limits change over time.
 
 1. Go to Railway.
 2. Create a new project.
