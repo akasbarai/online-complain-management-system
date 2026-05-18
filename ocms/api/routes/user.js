@@ -4,12 +4,14 @@ const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
 const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { validatePassword, validateRequired } = require('../utils/validation');
+const { refreshSlaBreaches } = require('../utils/workflow');
 const router = express.Router();
 
 router.use(authMiddleware('user'));
 
 router.get('/attention', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [[activeComplaints]] = await pool.query(
       `SELECT COUNT(*) as count FROM complaints
        WHERE user_id = ?
@@ -37,6 +39,7 @@ router.get('/attention', async (req, res) => {
 
 router.get('/complaints', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [complaints] = await pool.query(`
       SELECT c.*, d.name as department_name, o.name as officer_name
       FROM complaints c
@@ -89,6 +92,7 @@ router.get('/complaints', async (req, res) => {
 
 router.get('/complaints/:id', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [complaints] = await pool.query(`
       SELECT c.*, d.name as department_name, o.name as officer_name, hl.name as hierarchy_name
       FROM complaints c

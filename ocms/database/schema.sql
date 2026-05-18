@@ -103,7 +103,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     id VARCHAR(50) PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
-    target ENUM('All', 'Users', 'Officers') DEFAULT 'All',
+    target ENUM('All', 'Users', 'Officers', 'Admins') DEFAULT 'All',
+    recipient_type ENUM('User', 'Officer', 'Admin') DEFAULT NULL,
+    recipient_id VARCHAR(50) DEFAULT NULL,
     priority ENUM('Normal', 'Important', 'Urgent') DEFAULT 'Normal',
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -112,7 +114,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE TABLE IF NOT EXISTS notification_reads (
     id VARCHAR(50) PRIMARY KEY,
     notification_id VARCHAR(50) NOT NULL,
-    recipient_type ENUM('User', 'Officer') NOT NULL,
+    recipient_type ENUM('User', 'Officer', 'Admin') NOT NULL,
     recipient_id VARCHAR(50) NOT NULL,
     read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY unique_notification_recipient (notification_id, recipient_type, recipient_id),
@@ -124,6 +126,7 @@ CREATE INDEX idx_complaints_user_id ON complaints(user_id);
 CREATE INDEX idx_complaints_officer_id ON complaints(assigned_officer_id);
 CREATE INDEX idx_complaints_department ON complaints(department_id);
 CREATE INDEX idx_complaints_sla ON complaints(sla_deadline);
+CREATE INDEX idx_notifications_recipient ON notifications(recipient_type, recipient_id);
 CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id);
 
 -- Migration: Fix base64 image storage (run if DB already exists)

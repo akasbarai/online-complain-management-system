@@ -2,9 +2,9 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
-const { createId } = require('../utils/id');
-const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { validateEnum, validatePassword, validateRequired } = require('../utils/validation');
+const { refreshSlaBreaches, validateStatusTransition } = require('../utils/workflow');
 const router = express.Router();
 
 const COMPLAINT_STATUSES = ['Under Review', 'In Progress', 'Awaiting Materials', 'Resolved', 'Rejected'];
@@ -13,6 +13,7 @@ router.use(authMiddleware('officer'));
 
 router.get('/attention', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [[assigned]] = await pool.query(
       "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id = ? AND status = 'Assigned' AND is_trashed = FALSE",
       [req.user.id]
@@ -52,6 +53,7 @@ router.get('/attention', async (req, res) => {
 
 router.get('/complaints', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [complaints] = await pool.query(`
       SELECT c.*, u.name as user_name, d.name as department_name
       FROM complaints c
@@ -136,6 +138,15 @@ router.put('/complaints/:id/status', async (req, res) => {
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
 
+    const [complaints] = await pool.query(
+      'SELECT status, user_id FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    const transitionError = validateStatusTransition(complaints[0].status, status);
+    if (transitionError) return res.status(400).json({ error: transitionError });
+
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
       [status, req.params.id, req.user.id]
@@ -148,10 +159,13 @@ router.put('/complaints/:id/status', async (req, res) => {
       [req.params.id, `Status updated to ${status}: ${remark}`, req.user.name || 'Officer', remark || '']
     );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-      [createId('n-'), `Complaint #${req.params.id} Update`, `Status updated to ${status} by ${req.user.name}. ${remark || ''}`]
-    );
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Update`,
+      message: `Status updated to ${status} by ${req.user.name}. ${remark || ''}`,
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id
+    });
 
     res.json({ message: 'Status updated' });
   } catch (err) {
@@ -166,6 +180,15 @@ router.put('/complaints/:id/escalate', async (req, res) => {
     const requiredError = validateRequired({ reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
 
+    const [complaints] = await pool.query(
+      'SELECT status, user_id FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    const transitionError = validateStatusTransition(complaints[0].status, 'Escalated');
+    if (transitionError) return res.status(400).json({ error: transitionError });
+
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
       ['Escalated', req.params.id, req.user.id]
@@ -178,10 +201,13 @@ router.put('/complaints/:id/escalate', async (req, res) => {
       [req.params.id, `Escalated: ${reason}`, req.user.name || 'Officer', reason]
     );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-      [createId('n-'), `Complaint #${req.params.id} Escalated`, `Officer ${req.user.name} has escalated your complaint. Reason: ${reason}`]
-    );
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Escalated`,
+      message: `Officer ${req.user.name} has escalated your complaint. Reason: ${reason}`,
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id
+    });
 
     res.json({ message: 'Complaint escalated' });
   } catch (err) {

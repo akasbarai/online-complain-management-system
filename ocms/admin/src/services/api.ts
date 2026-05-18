@@ -55,6 +55,15 @@ export const HierarchyService = {
   }
 };
 
+export const EscalationRuleService = {
+  getAll: () => api('/admin/escalation-rules'),
+  create: (data: { departmentId: string; hierarchyLevelId: string; timeLimitHours: number; targetLevelId: string }) =>
+    api('/admin/escalation-rules', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { timeLimitHours: number; targetLevelId: string }) =>
+    api(`/admin/escalation-rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => api(`/admin/escalation-rules/${id}`, { method: 'DELETE' })
+};
+
 export const OfficerService = {
   getAll: () => api<Officer[]>('/admin/officers'),
   create: (data: Partial<Officer>) => api<{ officer: Officer; password: string }>('/admin/officers', { method: 'POST', body: JSON.stringify(data) }),

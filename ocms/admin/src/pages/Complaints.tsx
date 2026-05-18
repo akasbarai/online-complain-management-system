@@ -32,6 +32,18 @@ export const Complaints = () => {
   
   const [newPriority, setNewPriority] = useState<Priority | ''>('');
 
+  const allowedStatusTransitions: Record<ComplaintStatus, ComplaintStatus[]> = {
+    [ComplaintStatus.SUBMITTED]: [ComplaintStatus.UNDER_REVIEW, ComplaintStatus.ASSIGNED, ComplaintStatus.REJECTED],
+    [ComplaintStatus.UNDER_REVIEW]: [ComplaintStatus.ASSIGNED, ComplaintStatus.REJECTED],
+    [ComplaintStatus.ASSIGNED]: [ComplaintStatus.IN_PROGRESS, ComplaintStatus.AWAITING_MATERIALS, ComplaintStatus.ESCALATED, ComplaintStatus.REJECTED],
+    [ComplaintStatus.IN_PROGRESS]: [ComplaintStatus.AWAITING_MATERIALS, ComplaintStatus.RESOLVED, ComplaintStatus.ESCALATED, ComplaintStatus.REJECTED],
+    [ComplaintStatus.AWAITING_MATERIALS]: [ComplaintStatus.IN_PROGRESS, ComplaintStatus.RESOLVED, ComplaintStatus.ESCALATED, ComplaintStatus.REJECTED],
+    [ComplaintStatus.ESCALATED]: [ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS, ComplaintStatus.RESOLVED, ComplaintStatus.REJECTED],
+    [ComplaintStatus.RESOLVED]: [ComplaintStatus.CLOSED],
+    [ComplaintStatus.REJECTED]: [ComplaintStatus.CLOSED],
+    [ComplaintStatus.CLOSED]: []
+  };
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -83,9 +95,17 @@ export const Complaints = () => {
       const bIsRecommended = b.hierarchyLevelId === selectedComplaint.currentHierarchyLevelId;
       if (aIsRecommended && !bIsRecommended) return -1;
       if (!aIsRecommended && bIsRecommended) return 1;
+      const aLoad = a.workload?.active ?? 0;
+      const bLoad = b.workload?.active ?? 0;
+      if (aLoad !== bLoad) return aLoad - bLoad;
       return a.name.localeCompare(b.name);
     });
   }, [selectedComplaint, officers]);
+
+  const nextStatuses = useMemo(() => {
+    if (!selectedComplaint) return [];
+    return allowedStatusTransitions[selectedComplaint.status] || [];
+  }, [selectedComplaint]);
 
   const getDesignation = (levelId: string | null) => {
     return currentDeptLevels.find(l => l.id === levelId)?.name || 'General Officer';
@@ -141,7 +161,7 @@ export const Complaints = () => {
 
   const handleStatusClick = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
-    setNewStatus(complaint.status);
+    setNewStatus('');
     setStatusNotes('');
     setIsStatusOpen(true);
   };
@@ -526,7 +546,7 @@ export const Complaints = () => {
               
               <div className="mt-2 text-xs text-slate-500 bg-white p-2 border border-slate-100 rounded">
                 <span className="font-semibold text-slate-700">Suggestion:</span> Look for officers marked as 
-                <span className="font-bold text-green-600"> (Recommended)</span>. They match the hierarchy level required for this complaint.
+                <span className="font-bold text-green-600"> Recommended</span>. Officers are sorted by hierarchy match and lighter active workload.
               </div>
            </div>
            
@@ -539,13 +559,28 @@ export const Complaints = () => {
                 {eligibleOfficers.map(o => {
                   const designation = getDesignation(o.hierarchyLevelId);
                   const isRecommended = o.hierarchyLevelId === selectedComplaint?.currentHierarchyLevelId;
+                  const active = o.workload?.active ?? 0;
+                  const slaRisk = o.workload?.slaRisk ?? 0;
                   return (
-                    <option key={o.id} value={o.id} className={isRecommended ? "font-bold text-green-700" : ""}>
+                    <option key={o.id} value={o.id} className={isRecommended ? "font-bold text-green-700" : ""} title={`Active: ${active}, SLA Risk: ${slaRisk}`}>
                       {o.name} — {designation} {isRecommended ? '(Recommended)' : ''} ({o.jurisdiction || 'General'})
                     </option>
                   );
                 })}
               </Select>
+              {eligibleOfficers.length > 0 && (
+                <div className="mt-3 divide-y divide-slate-100 rounded border border-slate-200 bg-white">
+                  {eligibleOfficers.slice(0, 5).map(o => {
+                    const isSelected = o.id === reassignOfficerId;
+                    return (
+                      <div key={o.id} className={`flex items-center justify-between px-3 py-2 text-xs ${isSelected ? 'bg-primary-50 text-primary-800' : 'text-slate-600'}`}>
+                        <span className="font-medium">{o.name}</span>
+                        <span>Active: {o.workload?.active ?? 0} | New: {o.workload?.newAssignments ?? 0} | SLA Risk: {o.workload?.slaRisk ?? 0}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
            </div>
 
            <div>
@@ -584,10 +619,13 @@ export const Complaints = () => {
               </label>
               <Select required value={newStatus} onChange={e => setNewStatus(e.target.value as ComplaintStatus)}>
                 <option value="">Select Status</option>
-                {Object.values(ComplaintStatus).map(s => (
+                {nextStatuses.map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </Select>
+              {nextStatuses.length === 0 && (
+                <p className="mt-2 text-xs text-red-600">No further status changes are allowed from this status.</p>
+              )}
            </div>
 
            <div>

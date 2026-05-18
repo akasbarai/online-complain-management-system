@@ -5,6 +5,13 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
+const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const {
+  TERMINAL_STATUSES,
+  getSlaDeadline,
+  refreshSlaBreaches,
+  validateStatusTransition
+} = require('../utils/workflow');
 const {
   isValidEmail,
   normalizeEmail,
@@ -16,13 +23,14 @@ const router = express.Router();
 const USER_STATUSES = ['Active', 'Inactive', 'Blocked', 'Pending'];
 const COMPLAINT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected'];
 const PRIORITIES = ['Unassigned', 'Low', 'Medium', 'High', 'Critical'];
-const NOTIFICATION_TARGETS = ['All', 'Users', 'Officers'];
+const NOTIFICATION_TARGETS = ['All', 'Users', 'Officers', 'Admins'];
 const NOTIFICATION_PRIORITIES = ['Normal', 'Important', 'Urgent'];
 
 router.use(authMiddleware('admin'));
 
 router.get('/attention', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [[pendingUsers]] = await pool.query("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'");
     const [[passwordResetRequests]] = await pool.query('SELECT COUNT(*) as count FROM users WHERE password_reset_requested = TRUE');
     const [[unassignedComplaints]] = await pool.query(
@@ -49,12 +57,10 @@ router.get('/attention', async (req, res) => {
          OR NOT EXISTS (SELECT 1 FROM officers o WHERE o.department_id = d.id AND o.status = 'Active')
        )`
     );
-    const [[notifications]] = await pool.query(
-      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Officers') AND is_read = FALSE"
-    );
+    const notifications = await getUnreadNotificationCount(pool, 'admin', req.user.id);
 
     res.json({
-      notifications: notifications.count,
+      notifications,
       users: pendingUsers.count + passwordResetRequests.count,
       pendingUsers: pendingUsers.count,
       passwordResetRequests: passwordResetRequests.count,
@@ -225,10 +231,90 @@ router.delete('/hierarchy/:id', async (req, res) => {
   }
 });
 
+// Escalation rules
+router.get('/escalation-rules', async (req, res) => {
+  try {
+    const [rules] = await pool.query('SELECT * FROM escalation_rules ORDER BY department_id, hierarchy_level_id');
+    res.json(rules.map(r => ({
+      id: r.id,
+      departmentId: r.department_id,
+      hierarchyLevelId: r.hierarchy_level_id,
+      timeLimitHours: r.time_limit_hours,
+      targetLevelId: r.target_level_id
+    })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch escalation rules' });
+  }
+});
+
+router.post('/escalation-rules', async (req, res) => {
+  try {
+    const { departmentId, hierarchyLevelId, timeLimitHours, targetLevelId } = req.body;
+    const requiredError = validateRequired({ departmentId, hierarchyLevelId, targetLevelId });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
+    const hours = Number(timeLimitHours);
+    if (!Number.isInteger(hours) || hours <= 0) {
+      return res.status(400).json({ error: 'Time limit must be a positive whole number of hours' });
+    }
+
+    const id = createId('er-');
+    await pool.query(
+      `INSERT INTO escalation_rules (id, department_id, hierarchy_level_id, time_limit_hours, target_level_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [id, departmentId, hierarchyLevelId, hours, targetLevelId]
+    );
+
+    res.status(201).json({ id, departmentId, hierarchyLevelId, timeLimitHours: hours, targetLevelId });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create escalation rule' });
+  }
+});
+
+router.put('/escalation-rules/:id', async (req, res) => {
+  try {
+    const { timeLimitHours, targetLevelId } = req.body;
+    const hours = Number(timeLimitHours);
+    if (!Number.isInteger(hours) || hours <= 0) {
+      return res.status(400).json({ error: 'Time limit must be a positive whole number of hours' });
+    }
+    const requiredError = validateRequired({ targetLevelId });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
+    const [result] = await pool.query(
+      'UPDATE escalation_rules SET time_limit_hours = ?, target_level_id = ? WHERE id = ?',
+      [hours, targetLevelId, req.params.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Escalation rule not found' });
+
+    res.json({ message: 'Escalation rule updated' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update escalation rule' });
+  }
+});
+
+router.delete('/escalation-rules/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM escalation_rules WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Escalation rule deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete escalation rule' });
+  }
+});
+
 // Officers
 router.get('/officers', async (req, res) => {
   try {
-    const [officers] = await pool.query("SELECT * FROM officers WHERE role != 'Admin'");
+    const [officers] = await pool.query(`
+      SELECT o.*,
+        SUM(CASE WHEN c.id IS NOT NULL AND c.status NOT IN ('Resolved', 'Closed', 'Rejected') AND c.is_trashed = FALSE THEN 1 ELSE 0 END) AS active_complaint_count,
+        SUM(CASE WHEN c.id IS NOT NULL AND c.status = 'Assigned' AND c.is_trashed = FALSE THEN 1 ELSE 0 END) AS new_assignment_count,
+        SUM(CASE WHEN c.id IS NOT NULL AND c.sla_deadline IS NOT NULL AND c.sla_deadline <= DATE_ADD(NOW(), INTERVAL 24 HOUR) AND c.status NOT IN ('Resolved', 'Closed', 'Rejected') AND c.is_trashed = FALSE THEN 1 ELSE 0 END) AS sla_risk_count
+      FROM officers o
+      LEFT JOIN complaints c ON c.assigned_officer_id = o.id
+      WHERE o.role != 'Admin'
+      GROUP BY o.id
+    `);
     res.json(officers.map(o => ({
       id: o.id,
       name: o.name,
@@ -238,7 +324,12 @@ router.get('/officers', async (req, res) => {
       role: o.role,
       jurisdiction: o.jurisdiction,
       status: o.status,
-      profilePhoto: o.profile_photo
+      profilePhoto: o.profile_photo,
+      workload: {
+        active: Number(o.active_complaint_count || 0),
+        newAssignments: Number(o.new_assignment_count || 0),
+        slaRisk: Number(o.sla_risk_count || 0)
+      }
     })));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch officers' });
@@ -366,10 +457,13 @@ router.put('/users/:id/status', async (req, res) => {
     if (status === 'Blocked') {
       const [users] = await pool.query('SELECT name FROM users WHERE id = ?', [req.params.id]);
       const userName = users.length > 0 ? users[0].name : 'User';
-      await pool.query(
-        "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-        [createId('n-'), 'Account Suspended', `Dear ${userName}, your account has been suspended by the administrator. Please contact support for assistance.`]
-      );
+      await createNotification(pool, {
+        title: 'Account Suspended',
+        message: `Dear ${userName}, your account has been suspended by the administrator. Please contact support for assistance.`,
+        target: 'Users',
+        recipientType: 'User',
+        recipientId: req.params.id
+      });
     }
     
     res.json({ message: 'User status updated' });
@@ -421,6 +515,7 @@ router.delete('/users/:id', async (req, res) => {
 // Complaints
 router.get('/complaints', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
     const [complaints] = await pool.query(`
       SELECT c.*, u.name as user_name, o.name as officer_name, hl.name as hierarchy_name
       FROM complaints c
@@ -477,29 +572,88 @@ router.put('/complaints/:id/reassign', async (req, res) => {
     const requiredError = validateRequired({ officerId, reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
 
-    const [officers] = await pool.query('SELECT hierarchy_level_id FROM officers WHERE id = ?', [officerId]);
+    const [officers] = await pool.query("SELECT hierarchy_level_id FROM officers WHERE id = ? AND role != 'Admin' AND status = 'Active'", [officerId]);
     if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
 
-    await pool.query(
-      `UPDATE complaints SET 
+    const [complaints] = await pool.query(
+      `SELECT id, title, user_id, department_id, status, assigned_officer_id
+       FROM complaints
+       WHERE id = ? AND is_trashed = FALSE`,
+      [req.params.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    const complaint = complaints[0];
+    if (TERMINAL_STATUSES.includes(complaint.status)) {
+      return res.status(400).json({ error: `Cannot reassign a ${complaint.status} complaint` });
+    }
+
+    const nextStatus = ['Submitted', 'Under Review', 'Escalated'].includes(complaint.status)
+      ? 'Assigned'
+      : complaint.status;
+    const transitionError = validateStatusTransition(complaint.status, nextStatus);
+    if (transitionError) {
+      return res.status(400).json({ error: transitionError });
+    }
+
+    const oldOfficerId = complaint.assigned_officer_id;
+    const slaDeadline = await getSlaDeadline(pool, complaint.department_id, officers[0].hierarchy_level_id);
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      await connection.query(
+        `UPDATE complaints SET 
         assigned_officer_id = ?, 
         current_hierarchy_level_id = ?,
-        status = CASE WHEN status = 'Submitted' THEN 'Assigned' ELSE status END,
-        sla_deadline = CASE WHEN sla_deadline IS NULL THEN DATE_ADD(NOW(), INTERVAL 72 HOUR) ELSE sla_deadline END,
+        status = ?,
+        sla_deadline = ?,
+        sla_breached = FALSE,
         updated_at = NOW()
        WHERE id = ?`,
-      [officerId, officers[0].hierarchy_level_id, req.params.id]
-    );
+        [officerId, officers[0].hierarchy_level_id, nextStatus, slaDeadline, req.params.id]
+      );
 
-    await pool.query(
-      'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, `Reassigned: ${reason}`, 'Admin', reason]
-    );
+      await connection.query(
+        'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
+        [req.params.id, `${oldOfficerId ? 'Reassigned' : 'Assigned'}: ${reason}`, 'Admin', reason]
+      );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Officers')",
-      [createId('n-'), 'New Complaint Assigned', `Complaint #${req.params.id} has been assigned to you.`]
-    );
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
+    if (oldOfficerId && oldOfficerId !== officerId) {
+      await createNotification(pool, {
+        title: 'Complaint Reassigned',
+        message: `Complaint #${req.params.id} has been reassigned away from you. Reason: ${reason}`,
+        target: 'Officers',
+        recipientType: 'Officer',
+        recipientId: oldOfficerId,
+        priority: 'Important'
+      });
+    }
+
+    await createNotification(pool, {
+      title: 'New Complaint Assigned',
+      message: `Complaint #${req.params.id} has been assigned to you.`,
+      target: 'Officers',
+      recipientType: 'Officer',
+      recipientId: officerId
+    });
+
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Assigned`,
+      message: 'Your complaint has been assigned to an officer for action.',
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaint.user_id
+    });
 
     res.json({ message: 'Complaint reassigned' });
   } catch (err) {
@@ -514,14 +668,20 @@ router.put('/complaints/:id/status', async (req, res) => {
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
 
-    await pool.query(
+    const [complaints] = await pool.query('SELECT status FROM complaints WHERE id = ? AND is_trashed = FALSE', [req.params.id]);
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    const transitionError = validateStatusTransition(complaints[0].status, status);
+    if (transitionError) return res.status(400).json({ error: transitionError });
+
+    const [result] = await pool.query(
       `UPDATE complaints SET 
         status = ?,
-        sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('Assigned', 'In Progress') THEN DATE_ADD(NOW(), INTERVAL 72 HOUR) ELSE sla_deadline END,
         updated_at = NOW()
-       WHERE id = ?`,
-      [status, status, req.params.id]
+       WHERE id = ? AND is_trashed = FALSE`,
+      [status, req.params.id]
     );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
@@ -579,16 +739,8 @@ router.get('/analytics', async (req, res) => {
 // Notifications
 router.get('/notifications', async (req, res) => {
   try {
-    const [notifications] = await pool.query('SELECT * FROM notifications ORDER BY created_at DESC');
-    res.json(notifications.map(n => ({
-      id: n.id,
-      title: n.title,
-      message: n.message,
-      target: n.target,
-      priority: n.priority,
-      date: n.created_at,
-      read: n.is_read === 1
-    })));
+    const notifications = await getNotificationsFor(pool, 'admin', req.user.id);
+    res.json(notifications);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
   }
@@ -605,14 +757,24 @@ router.post('/notifications', async (req, res) => {
     const priorityError = validateEnum(finalPriority, NOTIFICATION_PRIORITIES, 'Priority');
     if (priorityError) return res.status(400).json({ error: priorityError });
 
-    const id = createId('n-');
-    await pool.query(
-      'INSERT INTO notifications (id, title, message, target, priority) VALUES (?, ?, ?, ?, ?)',
-      [id, title, message, target, finalPriority]
-    );
-    res.status(201).json({ id, title, message, target, priority: finalPriority, date: new Date().toISOString() });
+    const notification = await createNotification(pool, {
+      title,
+      message,
+      target,
+      priority: finalPriority
+    });
+    res.status(201).json({ ...notification, date: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
+
+router.put('/notifications/:id/read', async (req, res) => {
+  try {
+    await markNotificationRead(pool, 'admin', req.user.id, req.params.id);
+    res.json({ message: 'Notification marked as read' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update notification' });
   }
 });
 

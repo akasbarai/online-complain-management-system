@@ -3,6 +3,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const outputDir = path.join(root, 'dist');
+const frontendDir = path.join(root, 'frontend');
 
 const copyDir = (from, to) => {
   if (!fs.existsSync(from)) {
@@ -15,8 +16,8 @@ const copyDir = (from, to) => {
 
 fs.rmSync(outputDir, { recursive: true, force: true });
 
-copyDir(path.join(root, 'user', 'dist'), outputDir);
-copyDir(path.join(root, 'admin', 'dist'), path.join(outputDir, 'admin'));
-copyDir(path.join(root, 'officer', 'dist'), path.join(outputDir, 'officer'));
+copyDir(path.join(frontendDir, 'user', 'dist'), outputDir);
+copyDir(path.join(frontendDir, 'admin', 'dist'), path.join(outputDir, 'admin'));
+copyDir(path.join(frontendDir, 'officer', 'dist'), path.join(outputDir, 'officer'));
 
 console.log('Prepared Vercel static output in dist/');

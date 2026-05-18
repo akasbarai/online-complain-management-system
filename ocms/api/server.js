@@ -23,15 +23,20 @@ const ensureMigrations = async () => {
     "ALTER TABLE users ADD COLUMN password_reset_requested BOOLEAN DEFAULT FALSE",
     "ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME DEFAULT NULL",
     "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT",
+    "ALTER TABLE notifications MODIFY COLUMN target ENUM('All', 'Users', 'Officers', 'Admins') DEFAULT 'All'",
+    "ALTER TABLE notifications ADD COLUMN recipient_type ENUM('User', 'Officer', 'Admin') DEFAULT NULL",
+    "ALTER TABLE notifications ADD COLUMN recipient_id VARCHAR(50) DEFAULT NULL",
     `CREATE TABLE IF NOT EXISTS notification_reads (
       id VARCHAR(50) PRIMARY KEY,
       notification_id VARCHAR(50) NOT NULL,
-      recipient_type ENUM('User', 'Officer') NOT NULL,
+      recipient_type ENUM('User', 'Officer', 'Admin') NOT NULL,
       recipient_id VARCHAR(50) NOT NULL,
       read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY unique_notification_recipient (notification_id, recipient_type, recipient_id),
       FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
     )`,
+    "ALTER TABLE notification_reads MODIFY COLUMN recipient_type ENUM('User', 'Officer', 'Admin') NOT NULL",
+    "CREATE INDEX idx_notifications_recipient ON notifications(recipient_type, recipient_id)",
     "CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id)"
   ];
 

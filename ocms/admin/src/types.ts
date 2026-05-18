@@ -55,6 +55,11 @@ export interface Officer {
   jurisdiction?: string;
   status: Status;
   profilePhoto?: string;
+  workload?: {
+    active: number;
+    newAssignments: number;
+    slaRisk: number;
+  };
 }
 
 export interface User {
@@ -108,7 +113,7 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  target: 'All' | 'Users' | 'Officers';
+  target: 'All' | 'Users' | 'Officers' | 'Admins';
   date: string;
   read?: boolean;
 }
