@@ -41,8 +41,8 @@ export const AuthService = {
     }
     return current;
   },
-  updatePassword: async (newPassword) => {
-    await api('/officer/password', { method: 'PUT', body: JSON.stringify({ newPassword }) });
+  updatePassword: async (currentPassword, newPassword) => {
+    await api('/officer/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) });
     return true;
   },
   confirmPasswordReset: async (token, newPassword) => {

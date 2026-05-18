@@ -1,27 +1,28 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, LogOut, User, Bell } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, LogOut, User, Bell, Menu, X, ShieldCheck } from 'lucide-react';
 import { AttentionService, AuthService, NotificationService } from '../services/api';
 import { Toast } from './ui';
 
 const AttentionBadge = ({ count }: { count?: number }) => {
   if (!count) return null;
   return (
-    <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white">
+    <span className="ml-auto min-w-5 rounded-full bg-primary-600 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white">
       {count > 99 ? '99+' : count}
     </span>
   );
 };
 
-const NavItem = ({ to, icon: Icon, label, count }: { to: string, icon: any, label: string, count?: number }) => (
+const NavItem = ({ to, icon: Icon, label, count, onClick }: { to: string, icon: any, label: string, count?: number, onClick?: () => void }) => (
   <NavLink 
     to={to} 
+    onClick={onClick}
     className={({ isActive }) => 
-      `flex items-center space-x-3 px-4 py-3 rounded-lg transition-all text-sm font-medium ${
+      `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all ${
         isActive 
-          ? 'bg-white text-primary-700 shadow-sm border border-slate-100' 
-          : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
+          ? 'border border-primary-100 bg-primary-50 text-primary-700 shadow-sm'
+          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
       }`
     }
   >
@@ -34,6 +35,7 @@ const NavItem = ({ to, icon: Icon, label, count }: { to: string, icon: any, labe
 export const Layout = () => {
   const navigate = useNavigate();
   const user = AuthService.getCurrentUser();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   
   // Notification State
   const [lastNotificationCount, setLastNotificationCount] = useState(0);
@@ -115,8 +117,10 @@ export const Layout = () => {
     navigate('/login');
   };
 
+  const userInitial = user?.name?.charAt(0)?.toUpperCase() || 'C';
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f8fafc_0,#eef2f7_38%,#f8fafc_78%)] font-sans text-slate-950">
       {toast && (
         <Toast 
           title={toast.title} 
@@ -125,33 +129,48 @@ export const Layout = () => {
         />
       )}
 
-      {/* Top Navigation */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-200/50 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="bg-primary-600 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">C</div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">CivicResolve <span className="text-slate-400 font-normal text-sm hidden sm:inline">| Citizen Portal</span></h1>
+            <button
+              type="button"
+              className="mr-1 rounded-md p-2 text-slate-500 hover:bg-slate-100 md:hidden"
+              onClick={() => setMobileNavOpen(value => !value)}
+              aria-label="Toggle navigation"
+            >
+              {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary-600 font-bold text-white shadow-sm shadow-primary-600/20">C</div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-slate-950">CivicResolve</h1>
+              <p className="hidden text-xs font-medium text-slate-500 sm:block">Citizen Portal</p>
+            </div>
           </div>
           
-          <div className="flex items-center gap-6">
-             <div className="relative cursor-pointer text-slate-500 hover:text-primary-600 transition-colors">
+          <div className="flex items-center gap-3 sm:gap-5">
+             <button
+               type="button"
+               onClick={() => navigate('/notifications')}
+               className="relative rounded-md p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-primary-700"
+               aria-label="Open notifications"
+             >
                 <Bell size={20} />
-                {!!attention.notifications && <span className="absolute -top-2 -right-2 min-w-5 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-5 text-white border-2 border-white">{attention.notifications > 99 ? '99+' : attention.notifications}</span>}
-             </div>
-             <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
+                {!!attention.notifications && <span className="absolute -right-1 -top-1 min-w-5 rounded-full border-2 border-white bg-primary-600 px-1 text-center text-[10px] font-bold leading-5 text-white">{attention.notifications > 99 ? '99+' : attention.notifications}</span>}
+             </button>
+             <div className="flex items-center gap-3 border-l border-slate-200 pl-3 sm:pl-5">
                 <div className="text-right hidden sm:block">
-                   <p className="text-sm font-medium text-slate-900">{user?.name}</p>
-                   <p className="text-xs text-slate-500">Citizen</p>
+                   <p className="max-w-40 truncate text-sm font-semibold text-slate-950">{user?.name}</p>
+                   <p className="text-xs text-slate-500">Verified Citizen</p>
                 </div>
                 {user?.profilePicture ? (
                   <img 
                     src={user.profilePicture} 
                     alt={user.name}
-                    className="w-9 h-9 rounded-full object-cover border border-primary-200"
+                    className="h-9 w-9 rounded-full border border-primary-200 object-cover"
                   />
                 ) : (
-                  <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-bold border border-primary-200">
-                     {user?.name.charAt(0)}
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary-200 bg-primary-50 font-bold text-primary-700">
+                     {userInitial}
                   </div>
                 )}
              </div>
@@ -159,27 +178,30 @@ export const Layout = () => {
         </div>
       </header>
       
-      <div className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 md:grid-cols-12 gap-8">
-         {/* Sidebar Navigation */}
-         <aside className="md:col-span-3 lg:col-span-2 space-y-1">
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-4">Menu</div>
-            <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" count={attention.dashboard} />
-            <NavItem to="/lodge" icon={PlusCircle} label="New Complaint" />
-            <NavItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} />
-            
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-6 mb-2 px-4">Account</div>
-            <NavItem to="/profile" icon={User} label="My Profile" count={attention.profile} />
-            <button 
-               onClick={handleLogout} 
-               className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mt-2"
-            >
-               <LogOut size={18} />
-               <span>Sign Out</span>
-            </button>
+      <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-6 px-4 py-6 md:grid-cols-12 lg:gap-8 lg:py-8">
+         <aside className={`${mobileNavOpen ? 'block' : 'hidden'} md:col-span-3 md:block lg:col-span-2`}>
+            <div className="sticky top-24 rounded-lg border border-slate-200/80 bg-white/85 p-3 shadow-sm shadow-slate-200/60 backdrop-blur">
+              <div className="mb-3 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                <ShieldCheck size={15} className="text-emerald-600" />
+                Active account
+              </div>
+              <nav className="space-y-1">
+                <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" count={attention.dashboard} onClick={() => setMobileNavOpen(false)} />
+                <NavItem to="/lodge" icon={PlusCircle} label="New Complaint" onClick={() => setMobileNavOpen(false)} />
+                <NavItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} onClick={() => setMobileNavOpen(false)} />
+                <NavItem to="/profile" icon={User} label="My Profile" count={attention.profile} onClick={() => setMobileNavOpen(false)} />
+              </nav>
+              <button
+                 onClick={handleLogout}
+                 className="mt-3 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+              >
+                 <LogOut size={18} />
+                 <span>Sign Out</span>
+              </button>
+            </div>
          </aside>
 
-         {/* Main Content Area */}
-         <main className="md:col-span-9 lg:col-span-10">
+         <main className="min-w-0 md:col-span-9 lg:col-span-10">
             <Outlet />
          </main>
       </div>

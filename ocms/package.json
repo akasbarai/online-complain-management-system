@@ -1,8 +1,0 @@
-{
-  "name": "civicresolve-deploy",
-  "private": true,
-  "version": "1.0.0",
-  "scripts": {
-    "vercel-build": "npm --prefix user ci && npm --prefix admin ci && npm --prefix officer ci && npm --prefix user run build && npm --prefix admin run build && npm --prefix officer run build && node scripts/prepare-vercel-static.js"
-  }
-}

@@ -82,6 +82,9 @@ export interface Notification {
   title: string;
   message: string;
   target: 'All' | 'Users' | 'Officers';
+  recipientType?: 'User' | 'Officer' | null;
+  recipientId?: string | null;
+  priority?: 'Normal' | 'Important' | 'Urgent';
   date: string;
   read?: boolean;
 }

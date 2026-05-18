@@ -2,8 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
-const { createId } = require('../utils/id');
-const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { validateEnum, validatePassword, validateRequired } = require('../utils/validation');
 const router = express.Router();
 
@@ -136,6 +135,12 @@ router.put('/complaints/:id/status', async (req, res) => {
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
 
+    const [complaints] = await pool.query(
+      'SELECT id, user_id FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
       [status, req.params.id, req.user.id]
@@ -148,10 +153,13 @@ router.put('/complaints/:id/status', async (req, res) => {
       [req.params.id, `Status updated to ${status}: ${remark}`, req.user.name || 'Officer', remark || '']
     );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-      [createId('n-'), `Complaint #${req.params.id} Update`, `Status updated to ${status} by ${req.user.name}. ${remark || ''}`]
-    );
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Update`,
+      message: `Status updated to ${status} by ${req.user.name}. ${remark || ''}`.trim(),
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id
+    });
 
     res.json({ message: 'Status updated' });
   } catch (err) {
@@ -166,6 +174,12 @@ router.put('/complaints/:id/escalate', async (req, res) => {
     const requiredError = validateRequired({ reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
 
+    const [complaints] = await pool.query(
+      'SELECT id, user_id FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
       ['Escalated', req.params.id, req.user.id]
@@ -178,10 +192,13 @@ router.put('/complaints/:id/escalate', async (req, res) => {
       [req.params.id, `Escalated: ${reason}`, req.user.name || 'Officer', reason]
     );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-      [createId('n-'), `Complaint #${req.params.id} Escalated`, `Officer ${req.user.name} has escalated your complaint. Reason: ${reason}`]
-    );
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Escalated`,
+      message: `Officer ${req.user.name} has escalated your complaint. Reason: ${reason}`,
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id
+    });
 
     res.json({ message: 'Complaint escalated' });
   } catch (err) {
@@ -220,9 +237,18 @@ router.put('/profile', async (req, res) => {
 
 router.put('/password', async (req, res) => {
   try {
-    const { newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body;
+    const requiredError = validateRequired({ currentPassword, newPassword });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
     const passwordError = validatePassword(newPassword);
     if (passwordError) return res.status(400).json({ error: passwordError });
+
+    const [officers] = await pool.query('SELECT password_hash FROM officers WHERE id = ?', [req.user.id]);
+    if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
+
+    const valid = await bcrypt.compare(currentPassword, officers[0].password_hash);
+    if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await pool.query('UPDATE officers SET password_hash = ? WHERE id = ?', [passwordHash, req.user.id]);

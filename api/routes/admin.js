@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
+const { createNotification } = require('../utils/notifications');
 const {
   isValidEmail,
   normalizeEmail,
@@ -50,7 +51,7 @@ router.get('/attention', async (req, res) => {
        )`
     );
     const [[notifications]] = await pool.query(
-      "SELECT COUNT(*) as count FROM notifications WHERE target IN ('All', 'Officers') AND is_read = FALSE"
+      "SELECT COUNT(*) as count FROM notifications WHERE recipient_type IS NULL AND target IN ('All', 'Officers')"
     );
 
     res.json({
@@ -366,10 +367,13 @@ router.put('/users/:id/status', async (req, res) => {
     if (status === 'Blocked') {
       const [users] = await pool.query('SELECT name FROM users WHERE id = ?', [req.params.id]);
       const userName = users.length > 0 ? users[0].name : 'User';
-      await pool.query(
-        "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Users')",
-        [createId('n-'), 'Account Suspended', `Dear ${userName}, your account has been suspended by the administrator. Please contact support for assistance.`]
-      );
+      await createNotification(pool, {
+        title: 'Account Suspended',
+        message: `Dear ${userName}, your account has been suspended by the administrator. Please contact support for assistance.`,
+        target: 'Users',
+        recipientType: 'User',
+        recipientId: req.params.id
+      });
     }
     
     res.json({ message: 'User status updated' });
@@ -380,7 +384,17 @@ router.put('/users/:id/status', async (req, res) => {
 
 router.put('/users/:id/verify', async (req, res) => {
   try {
+    const [users] = await pool.query('SELECT id, name FROM users WHERE id = ?', [req.params.id]);
+    if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+
     await pool.query('UPDATE users SET status = ? WHERE id = ?', ['Active', req.params.id]);
+    await createNotification(pool, {
+      title: 'Account Verified',
+      message: `Dear ${users[0].name}, your account has been verified. You can now log in and lodge complaints.`,
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: req.params.id
+    });
     res.json({ message: 'User verified successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to verify user' });
@@ -477,10 +491,16 @@ router.put('/complaints/:id/reassign', async (req, res) => {
     const requiredError = validateRequired({ officerId, reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
 
+    const [complaints] = await pool.query(
+      'SELECT id, user_id FROM complaints WHERE id = ? AND is_trashed = FALSE',
+      [req.params.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
     const [officers] = await pool.query('SELECT hierarchy_level_id FROM officers WHERE id = ?', [officerId]);
     if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
 
-    await pool.query(
+    const [result] = await pool.query(
       `UPDATE complaints SET 
         assigned_officer_id = ?, 
         current_hierarchy_level_id = ?,
@@ -490,16 +510,28 @@ router.put('/complaints/:id/reassign', async (req, res) => {
        WHERE id = ?`,
       [officerId, officers[0].hierarchy_level_id, req.params.id]
     );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
       [req.params.id, `Reassigned: ${reason}`, 'Admin', reason]
     );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target) VALUES (?, ?, ?, 'Officers')",
-      [createId('n-'), 'New Complaint Assigned', `Complaint #${req.params.id} has been assigned to you.`]
-    );
+    await createNotification(pool, {
+      title: 'New Complaint Assigned',
+      message: `Complaint #${req.params.id} has been assigned to you.`,
+      target: 'Officers',
+      recipientType: 'Officer',
+      recipientId: officerId
+    });
+
+    await createNotification(pool, {
+      title: 'Complaint Assigned',
+      message: `Your complaint #${req.params.id} has been assigned to an officer.`,
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id
+    });
 
     res.json({ message: 'Complaint reassigned' });
   } catch (err) {
@@ -514,7 +546,13 @@ router.put('/complaints/:id/status', async (req, res) => {
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
 
-    await pool.query(
+    const [complaints] = await pool.query(
+      'SELECT id, user_id FROM complaints WHERE id = ? AND is_trashed = FALSE',
+      [req.params.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    const [result] = await pool.query(
       `UPDATE complaints SET 
         status = ?,
         sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('Assigned', 'In Progress') THEN DATE_ADD(NOW(), INTERVAL 72 HOUR) ELSE sla_deadline END,
@@ -522,11 +560,20 @@ router.put('/complaints/:id/status', async (req, res) => {
        WHERE id = ?`,
       [status, status, req.params.id]
     );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
       [req.params.id, `Status Update: ${status}${notes ? ` - ${notes}` : ''}`, 'Admin', notes || '']
     );
+
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Update`,
+      message: `Status updated to ${status} by Admin. ${notes || ''}`.trim(),
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id
+    });
 
     res.json({ message: 'Complaint status updated' });
   } catch (err) {
@@ -585,6 +632,8 @@ router.get('/notifications', async (req, res) => {
       title: n.title,
       message: n.message,
       target: n.target,
+      recipientType: n.recipient_type,
+      recipientId: n.recipient_id,
       priority: n.priority,
       date: n.created_at,
       read: n.is_read === 1
@@ -605,12 +654,13 @@ router.post('/notifications', async (req, res) => {
     const priorityError = validateEnum(finalPriority, NOTIFICATION_PRIORITIES, 'Priority');
     if (priorityError) return res.status(400).json({ error: priorityError });
 
-    const id = createId('n-');
-    await pool.query(
-      'INSERT INTO notifications (id, title, message, target, priority) VALUES (?, ?, ?, ?, ?)',
-      [id, title, message, target, finalPriority]
-    );
-    res.status(201).json({ id, title, message, target, priority: finalPriority, date: new Date().toISOString() });
+    const notification = await createNotification(pool, {
+      title,
+      message,
+      target,
+      priority: finalPriority
+    });
+    res.status(201).json(notification);
   } catch (err) {
     res.status(500).json({ error: 'Failed to send notification' });
   }

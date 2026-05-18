@@ -72,20 +72,23 @@ export const Profile = () => {
   if (!user) return <div>Please login.</div>;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">My Profile</h1>
+    <div className="page-shell">
+      <div>
+        <h1 className="page-title">My Profile</h1>
+        <p className="page-subtitle">Manage contact information and verification details.</p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 flex flex-col items-center text-center">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <Card className="flex flex-col items-center p-6 text-center">
            <div className="relative mb-4">
              {profilePicturePreview || user.profilePicture ? (
                <img 
                  src={profilePicturePreview || user.profilePicture} 
                  alt={user.name} 
-                 className="w-24 h-24 rounded-full object-cover border-2 border-primary-100 shadow-sm"
+                className="h-24 w-24 rounded-full border-2 border-primary-100 object-cover shadow-sm"
                />
              ) : (
-               <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold text-3xl">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary-100 text-3xl font-bold text-primary-600">
                  {user.name.charAt(0)}
                </div>
              )}
@@ -97,10 +100,10 @@ export const Profile = () => {
              </label>
            </div>
            
-           <h2 className="text-xl font-bold text-slate-900">{user.name}</h2>
-           <p className="text-slate-500 text-sm mb-4">Citizen • Active</p>
+            <h2 className="text-xl font-bold text-slate-950">{user.name}</h2>
+           <p className="mb-4 text-sm text-slate-500">Citizen account</p>
            
-           <div className="w-full border-t border-slate-100 pt-4 text-left space-y-3">
+            <div className="w-full space-y-3 border-t border-slate-100 pt-4 text-left">
               <div className="flex items-center text-sm text-slate-600">
                  <Mail size={16} className="mr-3 text-slate-400" /> {user.email}
               </div>
@@ -114,9 +117,9 @@ export const Profile = () => {
         </Card>
 
         <div className="md:col-span-2">
-           <Card className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-bold text-lg text-slate-800">Personal Information</h3>
+            <Card className="p-6">
+               <div className="mb-6 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-950">Personal Information</h3>
                  {!isEditing && (
                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>Edit Profile</Button>
                  )}
@@ -128,7 +131,7 @@ export const Profile = () => {
                       <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
                       <Input value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
                    </div>
-                   <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                          <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number</label>
                          <Input value={formData.mobile || ''} onChange={e => setFormData({...formData, mobile: e.target.value})} />
@@ -148,20 +151,20 @@ export const Profile = () => {
                    </div>
                 </form>
               ) : (
-                <div className="space-y-4 text-sm">
-                   <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-3">
+                 <div className="space-y-4 text-sm">
+                    <div className="grid grid-cols-1 gap-1 border-b border-slate-100 pb-3 sm:grid-cols-3 sm:gap-4">
                       <span className="text-slate-500">Registered On</span>
                       <span className="col-span-2 font-medium">{new Date(user.registeredDate).toLocaleDateString()}</span>
                    </div>
-                   <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-3">
+                    <div className="grid grid-cols-1 gap-1 border-b border-slate-100 pb-3 sm:grid-cols-3 sm:gap-4">
                       <span className="text-slate-500">Address</span>
                       <span className="col-span-2 font-medium">{user.address || '-'}</span>
                    </div>
-                   <div className="grid grid-cols-3 gap-4 border-b border-slate-100 pb-3">
+                    <div className="grid grid-cols-1 gap-1 border-b border-slate-100 pb-3 sm:grid-cols-3 sm:gap-4">
                       <span className="text-slate-500">Mobile</span>
                       <span className="col-span-2 font-medium">{user.mobile || '-'}</span>
                    </div>
-                   <div className="grid grid-cols-3 gap-4 pb-3">
+                    <div className="grid grid-cols-1 gap-1 pb-3 sm:grid-cols-3 sm:gap-4">
                       <span className="text-slate-500">ID Verification</span>
                       <span className="col-span-2 font-medium flex items-center text-green-700">
                          {user.idCardUrl ? (
@@ -176,7 +179,7 @@ export const Profile = () => {
            </Card>
 
            <Card className="p-6 mt-6">
-              <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center">
+               <h3 className="mb-4 flex items-center text-lg font-bold text-slate-950">
                  <Shield size={18} className="mr-2 text-slate-400" /> Security
               </h3>
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded border border-slate-200">

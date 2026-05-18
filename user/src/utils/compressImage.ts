@@ -4,7 +4,7 @@ export const compressImage = (file: File): Promise<string> => {
     // We'll just read as Data URL but warn if too big.
     if (file.type === 'application/pdf') {
       if (file.size > 2 * 1024 * 1024) {
-         alert("PDF file is too large (max 2MB) for this preview demo. Please select a smaller file.");
+         alert("PDF file is too large (max 2MB). Please select a smaller file.");
          reject(new Error("File too large"));
          return;
       }

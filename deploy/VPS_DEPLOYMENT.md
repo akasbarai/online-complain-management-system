@@ -91,6 +91,7 @@ DB_PASSWORD=CHANGE_ME_STRONG_PASSWORD
 DB_NAME=civicresolve
 DB_PORT=3306
 JWT_SECRET=CHANGE_ME_LONG_RANDOM_SECRET
+ADMIN_PASSWORD=CHANGE_ME_LONG_RANDOM_ADMIN_PASSWORD
 PORT=4000
 CORS_ORIGINS=https://ocms.akashbarai.com.np
 ```
@@ -174,7 +175,7 @@ Default admin after seeding:
 
 ```text
 Email: admin@civicresolve.com
-Password: admin123
+Password: value from ADMIN_PASSWORD
 ```
 
 Change this password after first login.

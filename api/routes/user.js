@@ -240,6 +240,9 @@ router.put('/password', async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const bcrypt = require('bcryptjs');
+    const requiredError = validateRequired({ currentPassword, newPassword });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
     const passwordError = validatePassword(newPassword);
     if (passwordError) return res.status(400).json({ error: passwordError });
 
