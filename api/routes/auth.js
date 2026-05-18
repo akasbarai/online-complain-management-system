@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const { createId } = require('../utils/id');
+const { createNotification } = require('../utils/notifications');
 const {
   isValidEmail,
   normalizeEmail,
@@ -60,11 +61,8 @@ router.post('/user/register', async (req, res) => {
       [id, name.trim(), normalizedEmail, mobile || null, address || null, passwordHash, profilePicture || null, idCardUrl || null]
     );
 
-    const token = generateToken({ id, name: name.trim(), email: normalizedEmail }, 'user');
-
     res.status(201).json({
       message: 'Registration successful. Awaiting admin verification.',
-      token,
       user: { id, name: name.trim(), email: normalizedEmail, mobile, address, status: 'Pending', registeredDate: new Date().toISOString().split('T')[0] }
     });
   } catch (err) {
@@ -141,6 +139,9 @@ router.post('/officer/login', async (req, res) => {
     if (officer.status === 'Inactive') {
       return res.status(403).json({ error: 'Account inactive. Contact administrator.' });
     }
+    if (officer.status === 'Pending') {
+      return res.status(403).json({ error: 'Account verification pending.' });
+    }
     if (officer.status === 'Blocked') {
       return res.status(403).json({ error: 'Account blocked. Access denied.' });
     }
@@ -191,10 +192,12 @@ router.post('/user/forgot-password', async (req, res) => {
       [user.id]
     );
 
-    await pool.query(
-      "INSERT INTO notifications (id, title, message, target, priority) VALUES (?, ?, ?, 'Officers', 'Important')",
-      [createId('n-'), 'Password Reset Requested', `${user.name} (${normalizedEmail}) requested a password reset.`]
-    );
+    await createNotification(pool, {
+      title: 'Password Reset Requested',
+      message: `${user.name} (${normalizedEmail}) requested a password reset.`,
+      target: 'Officers',
+      priority: 'Important'
+    });
 
     res.json({ message: 'Password reset request sent to admin.' });
   } catch (err) {

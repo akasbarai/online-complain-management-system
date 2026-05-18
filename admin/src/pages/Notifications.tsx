@@ -36,6 +36,13 @@ export const Notifications = () => {
     n.message.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const audienceLabel = (notification: any) => {
+    if (notification.recipientType && notification.recipientId) {
+      return `${notification.recipientType}: ${notification.recipientId}`;
+    }
+    return notification.target;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -128,7 +135,7 @@ export const Notifications = () => {
                  {filteredHistory.map(n => (
                    <tr key={n.id}>
                      <td className="px-6 py-4 font-medium">{n.title}</td>
-                     <td className="px-6 py-4">{n.target}</td>
+                      <td className="px-6 py-4">{audienceLabel(n)}</td>
                      <td className="px-6 py-4 text-slate-500">{new Date(n.date).toLocaleDateString()}</td>
                    </tr>
                  ))}

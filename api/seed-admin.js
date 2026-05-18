@@ -13,7 +13,10 @@ async function seed() {
   console.log('Connected to database');
 
   // Create admin account
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'admin123');
+  if (!adminPassword) {
+    throw new Error('ADMIN_PASSWORD must be set before seeding the production admin account.');
+  }
   const passwordHash = await bcrypt.hash(adminPassword, 10);
   const adminId = 'admin-001';
 

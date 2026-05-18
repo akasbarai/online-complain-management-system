@@ -64,7 +64,7 @@ export const Register = () => {
   };
 
   const handleResetStorage = () => {
-    if (confirm("This will clear all temporary data (complaints, users, etc.) in this demo environment. Continue?")) {
+    if (confirm("This will clear local portal data from this browser. Continue?")) {
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('civic_')) localStorage.removeItem(key);
       });
@@ -74,7 +74,7 @@ export const Register = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
         <Card className="w-full max-w-md p-8 text-center">
            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
              <Clock size={32} />
@@ -89,7 +89,7 @@ export const Register = () => {
                 <p className="font-semibold mb-1">What happens next?</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>Our administrative team will review your ID documentation.</li>
-                  <li>You will receive an email once your account is approved.</li>
+                  <li>You can log in after an admin approves your account.</li>
                 </ul>
               </div>
            </div>
@@ -102,14 +102,15 @@ export const Register = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg p-8">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff7f7_0,#f8fafc_45%,#eef2f7_100%)] p-4">
+      <div className="mx-auto flex min-h-screen max-w-5xl items-center justify-center">
+      <Card className="w-full max-w-2xl p-7 sm:p-8">
         <div className="text-center mb-8">
-           <div className="bg-primary-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
-             <UserPlus size={24} />
-           </div>
-           <h1 className="text-2xl font-bold text-slate-900">Citizen Registration</h1>
-           <p className="text-slate-500">Create an account to report issues</p>
+           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+              <UserPlus size={24} />
+            </div>
+           <h1 className="text-2xl font-bold text-slate-950">Citizen Registration</h1>
+           <p className="mt-1 text-sm text-slate-500">Create an account to report issues.</p>
         </div>
         
         {error && (
@@ -128,7 +129,7 @@ export const Register = () => {
            <div className="flex flex-col items-center mb-6">
               <label className="relative cursor-pointer group">
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'profilePicture')} />
-                <div className={`w-24 h-24 rounded-full border-2 flex items-center justify-center overflow-hidden transition-all ${formData.profilePicture ? 'border-primary-500' : 'border-slate-300 border-dashed bg-slate-50'}`}>
+                 <div className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 transition-all ${formData.profilePicture ? 'border-primary-500' : 'border-dashed border-slate-300 bg-slate-50'}`}>
                    {formData.profilePicture ? (
                      <img src={formData.profilePicture} alt="Profile" className="w-full h-full object-cover" />
                    ) : (
@@ -158,7 +159,7 @@ export const Register = () => {
                </div>
                <div>
                  <label className="block text-sm font-medium text-slate-700 mb-1">Password <span className="text-red-500">*</span></label>
-                 <Input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="••••••••" />
+                 <Input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Enter password" />
                </div>
              </div>
              <div>
@@ -203,11 +204,12 @@ export const Register = () => {
            
            <Button type="submit" className="w-full mt-4">Submit Registration</Button>
            
-           <div className="text-center mt-4 text-sm text-slate-500">
-             Already have an account? <Link to="/login" className="text-primary-600 font-medium hover:underline">Sign In</Link>
-           </div>
-        </form>
+            <div className="mt-4 text-center text-sm text-slate-500">
+              Already have an account? <Link to="/login" className="text-primary-600 font-medium hover:underline">Sign In</Link>
+            </div>
+         </form>
       </Card>
+      </div>
     </div>
   );
 };

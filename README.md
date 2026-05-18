@@ -133,6 +133,7 @@ You should see these 8 tables:
    DB_NAME=civicresolve
    DB_PORT=3306
    JWT_SECRET=civicresolve_secret_key_change_in_production_2024
+   ADMIN_PASSWORD=change_this_before_seeding
    PORT=4000
    ```
 
@@ -144,6 +145,7 @@ You should see these 8 tables:
    | `DB_NAME` | Database name | `civicresolve` (must match schema.sql) |
    | `DB_PORT` | MySQL port | `3306` (default) |
    | `JWT_SECRET` | Secret for signing tokens | Use a long random string |
+   | `ADMIN_PASSWORD` | First admin password used by `seed-admin.js` | Use a strong one-time password |
    | `PORT` | API server port | `4000` |
 
    > **Most common mistake**: `DB_PASSWORD` must match your actual MySQL root password.
@@ -267,7 +269,7 @@ Follow this order to set up the system:
 ### 1. Login as Admin
 - Go to `http://localhost:5173`
 - Email: `admin@civicresolve.com`
-- Password: `admin123`
+- Password: value from `ADMIN_PASSWORD` (`admin123` only when seeding locally without `NODE_ENV=production`)
 
 ### 2. Create Departments
 - Navigate to **Departments** → Click **"+ Add Department"**

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Card, Button, Input } from '../components/ui';
+import { Link, useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, KeyRound, LogIn, ShieldCheck } from 'lucide-react';
 import { AuthService } from '../services/api';
-import { LogIn, AlertCircle, KeyRound, ArrowLeft } from 'lucide-react';
+import { Button, Card, Input } from '../components/ui';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -45,77 +45,101 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8">
-        <div className="text-center mb-8">
-           <div className="bg-primary-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
-             {isForgotMode ? <KeyRound size={24} /> : <LogIn size={24} />}
-           </div>
-           <h1 className="text-2xl font-bold text-slate-900">
-             {isForgotMode ? 'Reset Password' : 'Citizen Login'}
-           </h1>
-           <p className="text-slate-500">
-             {isForgotMode ? 'Request a password reset link' : 'Access the CivicResolve portal'}
-           </p>
+    <div className="min-h-screen bg-slate-950 text-slate-950">
+      <div
+        className="absolute inset-0 opacity-50"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(2, 6, 23, 0.94), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1800&q=80')",
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
+        }}
+      />
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-10">
+        <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1fr_440px] lg:items-center">
+          <div className="hidden text-white lg:block">
+            <Link to="/" className="mb-10 inline-flex items-center gap-2">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-600 font-bold shadow-sm">C</span>
+              <span className="text-xl font-bold">CivicResolve</span>
+            </Link>
+            <h1 className="max-w-lg text-4xl font-bold leading-tight">Citizen access for civic complaint tracking.</h1>
+            <div className="mt-8 grid max-w-md gap-3">
+              {['Submit verified complaints', 'Track officer updates', 'Receive private notifications'].map(item => (
+                <div key={item} className="flex items-center gap-3 rounded-md bg-white/10 px-4 py-3 text-sm text-slate-100 backdrop-blur">
+                  <ShieldCheck size={18} className="text-emerald-300" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Card className="w-full p-7 sm:p-8">
+            <div className="mb-8 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                {isForgotMode ? <KeyRound size={24} /> : <LogIn size={24} />}
+              </div>
+              <h1 className="text-2xl font-bold text-slate-950">
+                {isForgotMode ? 'Reset Password' : 'Citizen Login'}
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                {isForgotMode ? 'Request admin-assisted password reset.' : 'Sign in to continue.'}
+              </p>
+            </div>
+
+            {error && (
+              <div className={`mb-6 flex items-start gap-3 rounded-md border p-4 text-sm ${error.toLowerCase().includes('pending') ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {message && (
+              <div className="mb-6 flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                <KeyRound size={18} className="mt-0.5 shrink-0" />
+                <span>{message}</span>
+              </div>
+            )}
+
+            {isForgotMode ? (
+              <form onSubmit={handleForgot} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Email Address</label>
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" />
+                </div>
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Sending...' : 'Request Reset Link'}
+                </Button>
+
+                <button type="button" onClick={() => setIsForgotMode(false)} className="mx-auto flex items-center justify-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800">
+                  <ArrowLeft size={16} /> Back to Login
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Email Address</label>
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" />
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="block text-sm font-medium text-slate-700">Password</label>
+                    <button type="button" onClick={() => setIsForgotMode(true)} className="text-xs font-semibold text-primary-700 hover:text-primary-800">Forgot password?</button>
+                  </div>
+                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter password" />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Signing In...' : 'Sign In'}
+                </Button>
+
+                <div className="text-center text-sm text-slate-500">
+                  New here? <Link to="/register" className="font-semibold text-primary-700 hover:text-primary-800">Create account</Link>
+                </div>
+              </form>
+            )}
+          </Card>
         </div>
-
-        {error && (
-          <div className={`p-4 rounded-md text-sm mb-6 flex items-start gap-3 ${error.includes('pending') ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-            <AlertCircle size={18} className="shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {message && (
-          <div className="p-4 rounded-md text-sm mb-6 flex items-start gap-3 bg-green-50 text-green-700 border border-green-200">
-            <KeyRound size={18} className="shrink-0 mt-0.5" />
-            <span>{message}</span>
-          </div>
-        )}
-
-        {isForgotMode ? (
-          <form onSubmit={handleForgot} className="space-y-4">
-             <div>
-               <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-               <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="john.doe@gmail.com" />
-             </div>
-             
-             <Button type="submit" className="w-full" disabled={loading}>
-               {loading ? 'Sending...' : 'Request Reset Link'}
-             </Button>
-             
-             <div className="text-center mt-4 text-sm">
-               <button type="button" onClick={() => setIsForgotMode(false)} className="text-slate-500 font-medium hover:text-slate-700 flex items-center justify-center mx-auto gap-1">
-                 <ArrowLeft size={16} /> Back to Login
-               </button>
-             </div>
-          </form>
-        ) : (
-          <form onSubmit={handleLogin} className="space-y-4">
-             <div>
-               <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-               <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="john.doe@gmail.com" />
-             </div>
-             <div>
-               <div className="flex justify-between items-center mb-1">
-                 <label className="block text-sm font-medium text-slate-700">Password</label>
-                 <button type="button" onClick={() => setIsForgotMode(true)} className="text-xs text-primary-600 hover:underline">Forgot password?</button>
-               </div>
-               <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
-             </div>
-             <Button type="submit" className="w-full" disabled={loading}>
-               {loading ? 'Signing In...' : 'Sign In'}
-             </Button>
-             
-             <div className="text-center mt-4 text-sm text-slate-500">
-               Don't have an account? <Link to="/register" className="text-primary-600 font-medium hover:underline">Register Now</Link>
-             </div>
-             <div className="text-center text-xs text-slate-400 mt-2">
-               Demo: Please register a new account to test User Portal capabilities.
-             </div>
-          </form>
-        )}
-      </Card>
+      </div>
     </div>
   );
 };

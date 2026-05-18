@@ -46,7 +46,7 @@ export const Profile = () => {
     }
 
     try {
-      await AuthService.updatePassword(passData.new);
+      await AuthService.updatePassword(passData.current, passData.new);
       setMessage({ type: 'success', text: 'Password updated successfully.' });
       setPassData({ current: '', new: '', confirm: '' });
     } catch (err: any) {
@@ -176,6 +176,15 @@ export const Profile = () => {
           )}
 
           <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
+              <Input
+                type="password"
+                value={passData.current}
+                onChange={e => setPassData({...passData, current: e.target.value})}
+                required
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
               <Input 

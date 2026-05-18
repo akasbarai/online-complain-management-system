@@ -60,8 +60,8 @@ export interface User {
   registeredDate: string;
   status: Status; 
   password?: string;
-  profilePicture?: string; // Base64 string for demo
-  idCardUrl?: string;      // Base64 string for demo
+  profilePicture?: string;
+  idCardUrl?: string;
 }
 
 export interface Notification {
@@ -71,4 +71,7 @@ export interface Notification {
   date: string;
   read: boolean;
   target?: 'All' | 'Users' | 'Officers';
+  recipientType?: 'User' | 'Officer' | null;
+  recipientId?: string | null;
+  priority?: 'Normal' | 'Important' | 'Urgent';
 }

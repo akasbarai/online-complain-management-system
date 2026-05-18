@@ -23,8 +23,6 @@ export const AuthService = {
   },
   register: async (data) => {
     const res = await api('/auth/user/register', { method: 'POST', body: JSON.stringify(data) });
-    localStorage.setItem('token', res.token);
-    localStorage.setItem('currentUser', JSON.stringify(res.user));
     return res;
   },
   logout: () => {
@@ -48,8 +46,7 @@ export const AuthService = {
   forgotPassword: (email) => api('/auth/user/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   verifyResetToken: (token) => api('/auth/user/reset-password/verify', { method: 'POST', body: JSON.stringify({ token }) }),
   updatePasswordWithToken: (token, newPassword) =>
-    api('/auth/user/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) }),
-  verifyToken: async (_token) => true
+    api('/auth/user/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) })
 };
 
 export const DeptService = {

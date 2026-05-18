@@ -112,11 +112,11 @@ export const ResetPassword = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
            <div>
              <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-             <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
+             <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter password" />
            </div>
            <div>
              <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
-             <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="••••••••" />
+             <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="Confirm password" />
            </div>
            
            <Button type="submit" className="w-full">Save New Password</Button>

@@ -28,7 +28,7 @@ const ProtectedLayout = () => {
       
       try {
         const freshUser = await AuthService.getStatus();
-        if (freshUser.status === Status.BLOCKED || freshUser.status === Status.INACTIVE) {
+        if (freshUser.status === Status.PENDING || freshUser.status === Status.BLOCKED || freshUser.status === Status.INACTIVE) {
           AuthService.logout();
           window.location.reload();
           return;
@@ -48,7 +48,7 @@ const ProtectedLayout = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  if (!user || user.status === Status.BLOCKED || user.status === Status.INACTIVE) return <Navigate to="/login" replace />;
+  if (!user || user.status === Status.PENDING || user.status === Status.BLOCKED || user.status === Status.INACTIVE) return <Navigate to="/login" replace />;
   return <Layout />;
 };
 

@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Button, Spinner } from '../components/ui';
+import React, { useEffect, useState } from 'react';
+import { Bell, Calendar, Inbox, RefreshCw } from 'lucide-react';
+import { Badge, Button, Card, Spinner } from '../components/ui';
 import { NotificationService } from '../services/api';
 import { Notification } from '../types';
-import { Bell, Calendar, RefreshCw } from 'lucide-react';
+
+const priorityTone = (priority?: Notification['priority']): 'default' | 'warning' | 'danger' => {
+  if (priority === 'Urgent') return 'danger';
+  if (priority === 'Important') return 'warning';
+  return 'default';
+};
 
 export const Notifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -26,50 +32,57 @@ export const Notifications = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex h-64 items-center justify-center">
         <Spinner />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="page-shell">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
-          <p className="text-slate-500">System updates and announcements</p>
+          <h1 className="page-title">Notifications</h1>
+          <p className="page-subtitle">Updates from CivicResolve and assigned officers.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchNotifications}>
-          <RefreshCw size={14} className={`mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        <Button variant="outline" size="sm" onClick={fetchNotifications} className="gap-2">
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </Button>
       </div>
 
-      <div className="space-y-4">
-        {notifications.length === 0 && !loading && (
-          <Card className="p-8 text-center text-slate-500">
-            <Bell size={48} className="mx-auto mb-3 opacity-20" />
-            <p>No notifications found.</p>
-          </Card>
+      <Card className="overflow-hidden">
+        {notifications.length === 0 && (
+          <div className="flex flex-col items-center p-12 text-center text-slate-500">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Inbox size={34} />
+            </div>
+            <p className="font-medium text-slate-700">No notifications found.</p>
+          </div>
         )}
 
-        {notifications.map((notif) => (
-          <Card key={notif.id} className="p-4 flex items-start space-x-4 hover:shadow-md transition-shadow">
-            <div className="p-3 rounded-full shrink-0 bg-primary-50 text-primary-600">
-              <Bell size={20} />
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between items-start">
-                <h3 className="font-semibold text-slate-900">{notif.title}</h3>
-                <span className="text-xs text-slate-400 flex items-center">
-                  <Calendar size={12} className="mr-1" />
-                  {new Date(notif.date).toLocaleDateString()}
-                </span>
+        <div className="divide-y divide-slate-100">
+          {notifications.map((notif) => (
+            <div key={notif.id} className="flex gap-4 p-5 transition-colors hover:bg-slate-50">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+                <Bell size={20} />
               </div>
-              <p className="text-slate-600 mt-1 text-sm">{notif.message}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-950">{notif.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">{notif.message}</p>
+                  </div>
+                  {notif.priority && <Badge variant={priorityTone(notif.priority)}>{notif.priority}</Badge>}
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                  <Calendar size={12} />
+                  {new Date(notif.date).toLocaleString()}
+                </div>
+              </div>
             </div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 };

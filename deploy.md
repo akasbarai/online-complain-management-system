@@ -289,7 +289,7 @@ Email: admin@civicresolve.com
 Password: value from ADMIN_PASSWORD
 ```
 
-If `ADMIN_PASSWORD` is not set, check `api/seed-admin.js` before using the seeded account.
+Set `ADMIN_PASSWORD` before seeding production. Without it, production seeding exits instead of creating a default-password admin account.
 
 ## 7. Update Vercel Frontend Environment Variables
 
@@ -437,10 +437,10 @@ Free Render web services may sleep after inactivity. The first request after sle
 
 Before using the system seriously:
 
-- Replace default admin credentials.
+- Set a strong `ADMIN_PASSWORD` before seeding and change the admin password after first login.
 - Use a strong `JWT_SECRET`.
 - Use a managed MySQL database with backups enabled.
 - Restrict database network access where your provider allows it.
-- Fix the current fake user verification page before relying on account verification.
+- Account verification is admin-controlled; keep the public verification page informational unless you add email verification tokens later.
 - Keep `api/.env` out of Git.
 - Do not deploy the nested `ocms/` copy unless it is intentional.

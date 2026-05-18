@@ -1,14 +1,24 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Badge, Button, Spinner } from '../components/ui';
+import { AlertCircle, CheckCircle2, ChevronRight, ClipboardList, Clock, Hourglass, MapPin, Plus, Search } from 'lucide-react';
+import { Badge, Button, Card, Spinner } from '../components/ui';
 import { ComplaintService } from '../services/api';
-import { Plus, MapPin, Clock, AlertCircle, ChevronRight } from 'lucide-react';
-import { ComplaintStatus, Complaint } from '../types';
+import { Complaint, ComplaintStatus } from '../types';
+
+const statusTone = (status: ComplaintStatus): 'success' | 'secondary' | 'warning' | 'danger' | 'info' => {
+  if (status === ComplaintStatus.RESOLVED || status === ComplaintStatus.CLOSED) return 'success';
+  if (status === ComplaintStatus.REJECTED) return 'danger';
+  if (status === ComplaintStatus.UNDER_REVIEW || status === ComplaintStatus.SUBMITTED) return 'info';
+  return 'warning';
+};
+
+const isOpenComplaint = (status: ComplaintStatus) =>
+  ![ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED].includes(status);
 
 export const Dashboard = () => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     ComplaintService.getMyComplaints()
@@ -19,75 +29,154 @@ export const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex h-64 items-center justify-center">
         <Spinner />
       </div>
     );
   }
 
+  const openCount = complaints.filter(c => isOpenComplaint(c.status)).length;
+  const resolvedCount = complaints.filter(c => c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED).length;
+  const latestComplaint = complaints[0];
+  const filteredComplaints = complaints.filter(c => {
+    const text = `${c.title} ${c.description} ${c.location || ''} ${c.status}`.toLowerCase();
+    return text.includes(query.toLowerCase());
+  });
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="page-shell">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-           <h2 className="text-2xl font-bold text-slate-900">My Dashboard</h2>
-           <p className="text-slate-500">Welcome back! Track your submitted issues here.</p>
+          <h2 className="page-title">My Dashboard</h2>
+          <p className="page-subtitle">Track submitted issues and recent updates.</p>
         </div>
         <Link to="/lodge">
-          <Button className="shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40">
-             <Plus size={18} className="mr-2" /> Lodge Complaint
+          <Button className="w-full gap-2 sm:w-auto">
+            <Plus size={18} /> Lodge Complaint
           </Button>
         </Link>
       </div>
 
-      <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Total complaints</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{complaints.length}</p>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+              <ClipboardList size={22} />
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">In progress</p>
+              <p className="mt-2 text-3xl font-bold text-amber-700">{openCount}</p>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-amber-50 text-amber-700">
+              <Hourglass size={22} />
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Resolved</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-700">{resolvedCount}</p>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
+              <CheckCircle2 size={22} />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {latestComplaint && (
+        <Card className="overflow-hidden border-primary-100 bg-gradient-to-r from-primary-50 to-white">
+          <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Latest complaint</p>
+              <h3 className="mt-1 font-semibold text-slate-950">{latestComplaint.title}</h3>
+              <p className="mt-1 text-sm text-slate-600">{new Date(latestComplaint.updatedAt).toLocaleString()}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={statusTone(latestComplaint.status)}>{latestComplaint.status}</Badge>
+              <Link to={`/complaints/${latestComplaint.id}`}>
+                <Button variant="outline" size="sm">View</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="font-semibold text-slate-950">Complaint history</h3>
+          <div className="relative sm:w-72">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search complaints"
+              className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+            />
+          </div>
+        </div>
+
         {complaints.length === 0 && (
-          <Card className="p-12 text-center flex flex-col items-center">
-             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-400">
-                <AlertCircle size={32} />
-             </div>
-             <h3 className="text-lg font-medium text-slate-900">No Complaints Yet</h3>
-             <p className="text-slate-500 mb-6 max-w-sm">You haven't submitted any complaints. Use the button above to report an issue in your area.</p>
-             <Link to="/lodge"><Button variant="outline">Lodge First Complaint</Button></Link>
-          </Card>
+          <div className="flex flex-col items-center p-12 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <AlertCircle size={32} />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-950">No complaints yet</h3>
+            <p className="mb-6 mt-2 max-w-sm text-sm leading-6 text-slate-500">Start by reporting an issue in your area.</p>
+            <Link to="/lodge"><Button variant="outline">Lodge First Complaint</Button></Link>
+          </div>
         )}
-        
-        {complaints.map(c => (
-          <Link to={`/complaints/${c.id}`} key={c.id} className="block group">
-            <Card className="p-5 hover:shadow-md transition-all border-slate-200 group-hover:border-primary-200 relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-1 h-full bg-slate-200 group-hover:bg-primary-500 transition-colors"></div>
-               
-               <div className="flex justify-between items-start mb-2 pl-3">
-                  <div>
-                     <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-slate-900 text-lg group-hover:text-primary-700 transition-colors">{c.title}</h3>
-                        <span className="text-xs font-mono bg-slate-100 text-slate-500 px-2 py-0.5 rounded">#{c.id}</span>
-                     </div>
-                     <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
-                        <span className="flex items-center"><Clock size={12} className="mr-1"/> {new Date(c.createdAt).toLocaleDateString()}</span>
-                        {c.location && <span className="flex items-center"><MapPin size={12} className="mr-1"/> {c.location}</span>}
-                     </div>
+
+        {complaints.length > 0 && filteredComplaints.length === 0 && (
+          <div className="p-8 text-center text-sm text-slate-500">No matching complaints found.</div>
+        )}
+
+        <div className="divide-y divide-slate-100">
+          {filteredComplaints.map(c => (
+            <Link to={`/complaints/${c.id}`} key={c.id} className="group block">
+              <div className="relative p-5 transition-colors hover:bg-slate-50">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-slate-950 transition-colors group-hover:text-primary-700">{c.title}</h3>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-500">#{c.id}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><Clock size={12}/> {new Date(c.createdAt).toLocaleDateString()}</span>
+                      {c.location && <span className="flex items-center gap-1"><MapPin size={12}/> {c.location}</span>}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                     <Badge variant={c.status === ComplaintStatus.RESOLVED ? 'success' : c.status === ComplaintStatus.UNDER_REVIEW ? 'secondary' : 'warning'}>{c.status}</Badge>
-                     <ChevronRight className="text-slate-300 group-hover:text-primary-500 transition-colors" size={20} />
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    <Badge variant={statusTone(c.status)}>{c.status}</Badge>
+                    <ChevronRight className="text-slate-300 transition-colors group-hover:text-primary-500" size={20} />
                   </div>
-               </div>
-               
-               <p className="text-sm text-slate-600 line-clamp-2 mb-4 pl-3 max-w-2xl">{c.description}</p>
-               
-               <div className="border-t border-slate-100 pt-3 flex flex-col gap-2 pl-3">
+                </div>
+
+                <p className="mt-3 line-clamp-2 max-w-3xl text-sm leading-6 text-slate-600">{c.description}</p>
+
+                <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
                   {(c.history ?? []).slice(-1).map((h, i) => (
-                    <div key={i} className="text-xs flex items-center gap-2 text-slate-500">
-                       <div className="w-2 h-2 rounded-full bg-primary-500"></div>
-                       <span>Latest: <span className="font-medium text-slate-700">{h.action}</span></span>
-                       <span className="text-slate-400">• {new Date(h.date).toLocaleDateString()}</span>
+                    <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
+                      <div className="h-2 w-2 rounded-full bg-primary-500"></div>
+                      <span>Latest: <span className="font-medium text-slate-700">{h.action}</span></span>
+                      <span className="text-slate-400">{new Date(h.date).toLocaleDateString()}</span>
                     </div>
                   ))}
-               </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 };
