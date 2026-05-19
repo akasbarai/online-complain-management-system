@@ -30,6 +30,10 @@ export const Departments = () => {
     }
   };
 
+  const refreshAttention = () => {
+    window.dispatchEvent(new Event('ocms:attention-refresh'));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -39,7 +43,8 @@ export const Departments = () => {
         await DeptService.create({ name: formData.name, description: formData.description, status: Status.ACTIVE });
       }
       setIsModalOpen(false);
-      refresh();
+      await refresh();
+      refreshAttention();
     } catch (err: any) {
       alert(err.message);
     }
@@ -58,14 +63,24 @@ export const Departments = () => {
   };
 
   const toggleStatus = async (id: string) => {
-    await DeptService.toggleStatus(id);
-    refresh();
+    try {
+      await DeptService.toggleStatus(id);
+      await refresh();
+      refreshAttention();
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this department? This action cannot be undone and may affect associated hierarchy levels.")) {
-      await DeptService.delete(id);
-      refresh();
+      try {
+        await DeptService.delete(id);
+        await refresh();
+        refreshAttention();
+      } catch (err: any) {
+        alert(err.message);
+      }
     }
   };
 

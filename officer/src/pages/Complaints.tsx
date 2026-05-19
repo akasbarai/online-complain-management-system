@@ -85,17 +85,21 @@ export const Complaints = () => {
        return <span className="text-red-600 font-bold text-xs flex items-center px-2 py-1"><Clock size={12} className="mr-1" /> Overdue</span>;
     }
 
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const totalMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const mins = totalMinutes % 60;
+    const label = days > 0 ? `${days}d ${hours}h left` : `${hours}h ${mins}m left`;
+    const totalHours = diffMs / (1000 * 60 * 60);
     
     let colorClass = "text-green-700 bg-green-50 border-green-200";
-    if (hours < 24) colorClass = "text-yellow-700 bg-yellow-50 border-yellow-200";
-    if (hours < 4) colorClass = "text-red-700 bg-red-50 border-red-200";
+    if (totalHours < 24) colorClass = "text-yellow-700 bg-yellow-50 border-yellow-200";
+    if (totalHours < 4) colorClass = "text-red-700 bg-red-50 border-red-200";
 
     return (
       <div className={`flex items-center text-xs font-mono font-medium px-2 py-1 rounded border ${colorClass}`}>
         <Clock size={12} className="mr-1" />
-        {hours}h {mins}m left
+        {label}
       </div>
     );
   };

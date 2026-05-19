@@ -79,6 +79,10 @@ export const ComplaintDetails = () => {
 
   if (!complaint) return <div className="p-8 text-center">Complaint not found.</div>;
 
+  const slaDueDate = complaint.slaDeadline
+    ? new Date(complaint.slaDeadline).toLocaleString()
+    : 'Starts after assignment';
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={() => navigate('/complaints')} className="pl-0">
@@ -121,7 +125,7 @@ export const ComplaintDetails = () => {
                 </div>
                 <div>
                    <p className="text-slate-500 text-xs uppercase mb-1">Due Date</p>
-                   <p className="font-medium flex items-center"><Calendar size={14} className="mr-1 text-slate-400"/> {new Date(complaint.slaDeadline || '').toLocaleDateString()}</p>
+                   <p className="font-medium flex items-center"><Calendar size={14} className="mr-1 text-slate-400"/> {slaDueDate}</p>
                 </div>
              </div>
            </Card>

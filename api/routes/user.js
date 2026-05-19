@@ -100,6 +100,7 @@ router.get('/complaints', async (req, res) => {
       currentHierarchyLevelId: c.current_hierarchy_level_id,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
+      slaStartedAt: c.sla_started_at,
       slaDeadline: c.sla_deadline,
       slaBreached: c.sla_breached === 1,
       history: history.filter(h => h.complaint_id === c.id).map(h => ({
@@ -155,6 +156,7 @@ router.get('/complaints/:id', async (req, res) => {
       currentHierarchyLevelId: c.current_hierarchy_level_id,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
+      slaStartedAt: c.sla_started_at,
       slaDeadline: c.sla_deadline,
       slaBreached: c.sla_breached === 1,
       history: history.map(h => ({ date: h.created_at, action: h.action, actor: h.actor, details: h.details }))

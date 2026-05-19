@@ -68,6 +68,10 @@ export const Complaints = () => {
     }
   };
 
+  const refreshAttention = () => {
+    window.dispatchEvent(new Event('ocms:attention-refresh'));
+  };
+
   const currentDeptLevels = useMemo(() => {
     if (!selectedComplaint) return [];
     return hierarchyLevels.filter(h => h.departmentId === selectedComplaint.departmentId);
@@ -113,17 +117,21 @@ export const Complaints = () => {
        return <span className="text-red-600 font-bold text-xs">Overdue</span>;
     }
 
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const totalMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const mins = totalMinutes % 60;
+    const label = days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
+    const totalHours = diffMs / (1000 * 60 * 60);
     
     let colorClass = "text-green-600";
-    if (hours < 24) colorClass = "text-yellow-600";
-    if (hours < 4) colorClass = "text-red-600";
+    if (totalHours < 24) colorClass = "text-yellow-600";
+    if (totalHours < 4) colorClass = "text-red-600";
 
     return (
       <div className={`flex items-center text-xs font-mono font-medium ${colorClass}`}>
         <Clock size={12} className="mr-1" />
-        {hours}h {mins}m
+        {label}
       </div>
     );
   };
@@ -159,7 +167,8 @@ export const Complaints = () => {
       try {
         await ComplaintService.reassign(selectedComplaint.id, reassignOfficerId, reassignReason);
         setIsReassignOpen(false);
-        refresh();
+        await refresh();
+        refreshAttention();
       } catch (err: any) {
         alert(err.message);
       }
@@ -172,7 +181,8 @@ export const Complaints = () => {
       try {
         await ComplaintService.updateStatus(selectedComplaint.id, newStatus, statusNotes);
         setIsStatusOpen(false);
-        refresh();
+        await refresh();
+        refreshAttention();
       } catch (err: any) {
         alert(err.message);
       }
@@ -185,7 +195,8 @@ export const Complaints = () => {
       try {
         await ComplaintService.updatePriority(selectedComplaint.id, newPriority as Priority);
         setIsPriorityOpen(false);
-        refresh();
+        await refresh();
+        refreshAttention();
       } catch (err: any) {
         alert(err.message);
       }

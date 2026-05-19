@@ -53,7 +53,7 @@ export const Register = () => {
     if (!mobile) {
       nextErrors.mobile = 'Phone number is required.';
     } else if (!MOBILE_RE.test(mobile)) {
-      nextErrors.mobile = 'Phone number must start with 98 and be exactly 10 digits.';
+      nextErrors.mobile = 'Phone number must start with 98 or 97 and be exactly 10 digits.';
     }
     if (!formData.password.trim()) nextErrors.password = 'Password is required.';
     if (!address) nextErrors.address = 'Address is required.';

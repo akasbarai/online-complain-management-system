@@ -53,6 +53,10 @@ export const Officers = () => {
     }
   };
 
+  const refreshAttention = () => {
+    window.dispatchEvent(new Event('ocms:attention-refresh'));
+  };
+
   const handleOpenModal = () => {
     setFormData({ name: '', email: '', departmentId: '', hierarchyLevelId: '', jurisdiction: '' });
     setAvailableLevels([]);
@@ -85,6 +89,7 @@ export const Officers = () => {
       
       setIsModalOpen(false);
       await refresh();
+      refreshAttention();
       setNewCredentials({ officer, password });
 
     } catch (err: any) {
@@ -94,15 +99,24 @@ export const Officers = () => {
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this officer account? This action cannot be undone.")) {
-      await OfficerService.delete(id);
-      refresh();
+      try {
+        await OfficerService.delete(id);
+        await refresh();
+        refreshAttention();
+      } catch (err: any) {
+        alert(err.message);
+      }
     }
   };
 
   const handleResetPassword = async (id: string, email: string) => {
-    const link = await OfficerService.resetPassword(id);
-    if (link) {
-      setResetModal({ isOpen: true, link, email });
+    try {
+      const link = await OfficerService.resetPassword(id);
+      if (link) {
+        setResetModal({ isOpen: true, link, email });
+      }
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 

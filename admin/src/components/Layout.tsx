@@ -90,9 +90,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     loadAttention();
     window.addEventListener('ocms:notifications-read', loadAttention);
+    window.addEventListener('ocms:attention-refresh', loadAttention);
     const interval = setInterval(loadAttention, 10000);
     return () => {
       window.removeEventListener('ocms:notifications-read', loadAttention);
+      window.removeEventListener('ocms:attention-refresh', loadAttention);
       clearInterval(interval);
     };
   }, []);

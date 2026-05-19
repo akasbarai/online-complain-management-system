@@ -6,7 +6,7 @@ const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
 const { createNotification, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
-const { deadlineSql, refreshSlaBreaches } = require('../utils/sla');
+const { deadlineSql, nowSql, refreshSlaBreaches } = require('../utils/sla');
 const {
   isValidEmail,
   normalizeEmail,
@@ -39,7 +39,18 @@ router.get('/attention', async (req, res) => {
       `SELECT COUNT(*) as count FROM complaints
        WHERE is_trashed = FALSE
        AND status NOT IN ('Resolved', 'Closed', 'Rejected')
-       AND (sla_breached = TRUE OR (sla_deadline IS NOT NULL AND sla_deadline < NOW()))`
+       AND (sla_breached = TRUE OR (sla_deadline IS NOT NULL AND sla_deadline < ${nowSql()}))`
+    );
+    const [[complaintsNeedingAttention]] = await pool.query(
+      `SELECT COUNT(DISTINCT id) as count FROM complaints
+       WHERE is_trashed = FALSE
+       AND status NOT IN ('Resolved', 'Closed', 'Rejected')
+       AND (
+         assigned_officer_id IS NULL
+         OR status = 'Escalated'
+         OR sla_breached = TRUE
+         OR (sla_deadline IS NOT NULL AND sla_deadline < ${nowSql()})
+       )`
     );
     const [[officerSetupIssues]] = await pool.query(
       "SELECT COUNT(*) as count FROM officers WHERE role != 'Admin' AND (status != 'Active' OR hierarchy_level_id IS NULL)"
@@ -60,7 +71,7 @@ router.get('/attention', async (req, res) => {
       users: pendingUsers.count + passwordResetRequests.count,
       pendingUsers: pendingUsers.count,
       passwordResetRequests: passwordResetRequests.count,
-      complaints: unassignedComplaints.count + escalatedComplaints.count + slaBreachedComplaints.count,
+      complaints: complaintsNeedingAttention.count,
       unassignedComplaints: unassignedComplaints.count,
       escalatedComplaints: escalatedComplaints.count,
       slaBreachedComplaints: slaBreachedComplaints.count,
@@ -143,7 +154,22 @@ router.put('/departments/:id/status', async (req, res) => {
 
 router.delete('/departments/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM departments WHERE id = ?', [req.params.id]);
+    const [[counts]] = await pool.query(
+      `SELECT
+        (SELECT COUNT(*) FROM complaints WHERE department_id = ?) as complaints,
+        (SELECT COUNT(*) FROM officers WHERE department_id = ?) as officers
+       `,
+      [req.params.id, req.params.id]
+    );
+
+    if (counts.complaints > 0 || counts.officers > 0) {
+      return res.status(400).json({
+        error: `Cannot delete this department because it has ${counts.complaints} complaint(s) and ${counts.officers} officer(s). Reassign or remove those records first, or deactivate the department instead.`
+      });
+    }
+
+    const [result] = await pool.query('DELETE FROM departments WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Department not found' });
     res.json({ message: 'Department deleted' });
   } catch (err) {
     if (err.code === 'ER_ROW_IS_REFERENCED_2') {
@@ -220,9 +246,13 @@ router.put('/hierarchy/:id/status', async (req, res) => {
 
 router.delete('/hierarchy/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM hierarchy_levels WHERE id = ?', [req.params.id]);
+    const [result] = await pool.query('DELETE FROM hierarchy_levels WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Hierarchy level not found' });
     res.json({ message: 'Hierarchy level deleted' });
   } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ error: 'Cannot delete hierarchy level with associated records' });
+    }
     res.status(500).json({ error: 'Failed to delete hierarchy level' });
   }
 });
@@ -322,9 +352,13 @@ router.put('/officers/:id/status', async (req, res) => {
 
 router.delete('/officers/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM officers WHERE id = ?', [req.params.id]);
+    const [result] = await pool.query("DELETE FROM officers WHERE id = ? AND role != 'Admin'", [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Officer not found' });
     res.json({ message: 'Officer deleted' });
   } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ error: 'Cannot delete officer with associated records. Deactivate the officer instead.' });
+    }
     res.status(500).json({ error: 'Failed to delete officer' });
   }
 });
@@ -426,9 +460,13 @@ router.post('/users/:id/password-reset-link', async (req, res) => {
 
 router.delete('/users/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+    const [result] = await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ message: 'User deleted' });
   } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ error: 'Cannot delete user with associated records' });
+    }
     res.status(500).json({ error: 'Failed to delete user' });
   }
 });
@@ -474,6 +512,7 @@ router.get('/complaints', async (req, res) => {
       currentHierarchyLevelId: c.current_hierarchy_level_id,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
+      slaStartedAt: c.sla_started_at,
       slaDeadline: c.sla_deadline,
       slaBreached: c.sla_breached === 1,
       history: history.filter(h => h.complaint_id === c.id).map(h => ({
@@ -512,7 +551,11 @@ router.put('/complaints/:id/reassign', async (req, res) => {
         assigned_officer_id = ?, 
         current_hierarchy_level_id = ?,
         status = CASE WHEN status = 'Submitted' THEN 'Assigned' ELSE status END,
-        sla_deadline = CASE WHEN sla_deadline IS NULL THEN ${deadlineSql()} ELSE sla_deadline END,
+        sla_started_at = CASE WHEN sla_started_at IS NULL THEN ${nowSql()} ELSE sla_started_at END,
+        sla_deadline = CASE
+          WHEN sla_deadline IS NULL THEN ${deadlineSql('priority', `COALESCE(sla_started_at, ${nowSql()})`)}
+          ELSE sla_deadline
+        END,
         updated_at = NOW()
        WHERE id = ?`,
       [officerId, officers[0].hierarchy_level_id, req.params.id]
@@ -564,10 +607,17 @@ router.put('/complaints/:id/status', async (req, res) => {
     const [result] = await pool.query(
       `UPDATE complaints SET 
         status = ?,
-        sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('Assigned', 'In Progress', 'Awaiting Materials') THEN ${deadlineSql()} ELSE sla_deadline END,
+        sla_started_at = CASE
+          WHEN sla_started_at IS NULL AND ? IN ('Assigned', 'In Progress', 'Awaiting Materials') THEN ${nowSql()}
+          ELSE sla_started_at
+        END,
+        sla_deadline = CASE
+          WHEN sla_deadline IS NULL AND ? IN ('Assigned', 'In Progress', 'Awaiting Materials') THEN ${deadlineSql('priority', `COALESCE(sla_started_at, ${nowSql()})`)}
+          ELSE sla_deadline
+        END,
         updated_at = NOW()
        WHERE id = ?`,
-      [status, status, req.params.id]
+      [status, status, status, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
@@ -592,11 +642,31 @@ router.put('/complaints/:id/status', async (req, res) => {
 
 router.put('/complaints/:id/priority', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const { priority } = req.body;
     const priorityError = validateEnum(priority, PRIORITIES, 'Priority');
     if (priorityError) return res.status(400).json({ error: priorityError });
 
-    await pool.query('UPDATE complaints SET priority = ?, updated_at = NOW() WHERE id = ?', [priority, req.params.id]);
+    await pool.query(
+      `UPDATE complaints SET
+        priority = ?,
+        sla_started_at = CASE
+          WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials')
+            AND sla_started_at IS NULL
+          THEN ${nowSql()}
+          ELSE sla_started_at
+        END,
+        sla_deadline = CASE
+          WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials')
+            AND sla_breached = FALSE
+          THEN ${deadlineSql('?', `COALESCE(sla_started_at, ${nowSql()})`)}
+          ELSE sla_deadline
+        END,
+        updated_at = NOW()
+       WHERE id = ?`,
+      [priority, priority, req.params.id]
+    );
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor) VALUES (?, ?, ?)',
       [req.params.id, `Priority Update: ${priority}`, 'Admin']

@@ -19,6 +19,7 @@ export enum ComplaintStatus {
 }
 
 export enum Priority {
+  UNASSIGNED = 'Unassigned',
   LOW = 'Low',
   MEDIUM = 'Medium',
   HIGH = 'High',
@@ -50,6 +51,7 @@ export interface Complaint {
   createdAt: string;
   updatedAt: string;
   history: TimelineEvent[];
+  slaStartedAt?: string;
   slaDeadline?: string;
   slaBreached?: boolean;
 }
