@@ -39,6 +39,10 @@ export const Users = () => {
     }
   };
 
+  const refreshAttention = () => {
+    window.dispatchEvent(new Event('ocms:attention-refresh'));
+  };
+
   const handleViewUser = async (user: User) => {
     setViewUser(user);
     try {
@@ -51,57 +55,82 @@ export const Users = () => {
 
   const toggleStatus = async (id: string, currentStatus: Status) => {
     const newStatus = currentStatus === Status.ACTIVE ? Status.BLOCKED : Status.ACTIVE;
-    await UserService.toggleStatus(id, newStatus);
-    refresh();
+    try {
+      await UserService.toggleStatus(id, newStatus);
+      await refresh();
+      refreshAttention();
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const handleVerify = async (id: string, email: string) => {
-    const link = await UserService.verifyUser(id);
-    await refresh();
-    
-    if (link) {
-       const subject = "Action Required: Verify your OCMS Account";
-       const body = `Hello,\n\nYour sign-up details have been verified by the Administration.\n\nPlease click the link below to verify your email and activate your account:\n${link}\n\nRegards,\nOCMS Admin Team`;
-       
-       setEmailModal({
-         isOpen: true,
-         to: email,
-         subject,
-         body,
-         actionType: 'Verify'
-       });
+    try {
+      const link = await UserService.verifyUser(id);
+      await refresh();
+      refreshAttention();
+
+      if (link) {
+        const subject = "Action Required: Verify your OCMS Account";
+        const body = `Hello,\n\nYour sign-up details have been verified by the Administration.\n\nPlease click the link below to verify your email and activate your account:\n${link}\n\nRegards,\nOCMS Admin Team`;
+
+        setEmailModal({
+          isOpen: true,
+          to: email,
+          subject,
+          body,
+          actionType: 'Verify'
+        });
+      }
+    } catch (err: any) {
+      alert(err.message);
     }
   }
 
   const handleReject = async (id: string) => {
     if(window.confirm("Are you sure you want to reject this registration? This will delete the request.")) {
-      await UserService.delete(id);
-      refresh();
+      try {
+        await UserService.delete(id);
+        await refresh();
+        refreshAttention();
+      } catch (err: any) {
+        alert(err.message);
+      }
     }
   }
 
   const handleDelete = async (id: string) => {
     if(window.confirm("Are you sure you want to permanently delete this user? This action cannot be undone.")) {
-      await UserService.delete(id);
-      refresh();
+      try {
+        await UserService.delete(id);
+        await refresh();
+        refreshAttention();
+      } catch (err: any) {
+        alert(err.message);
+      }
     }
   }
 
   const handlePasswordReset = async (id: string, email: string) => {
-    const link = await UserService.resetPassword(id);
-    await refresh();
-    
-    if (link) {
-      const subject = "Password Reset Request - OCMS";
-      const body = `Hello,\n\nA password reset was requested for your account.\n\nClick here to reset: ${link}\n\nIf you did not request this, please ignore this email.\n\nRegards,\nAdmin`;
+    try {
+      const link = await UserService.resetPassword(id);
+      await refresh();
+      refreshAttention();
       
-      setEmailModal({
-         isOpen: true,
-         to: email,
-         subject,
-         body,
-         actionType: 'Reset'
-       });
+      if (link) {
+        const subject = "Password Reset Request - OCMS";
+        const body = `Hello,\n\nA password reset was requested for your account.\n\nClick here to reset: ${link}\n\nIf you did not request this, please ignore this email.\n\nRegards,\nAdmin`;
+
+        setEmailModal({
+          isOpen: true,
+          to: email,
+          subject,
+          body,
+          actionType: 'Reset'
+        });
+      }
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 

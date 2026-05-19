@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
-const { deadlineSql, refreshSlaBreaches } = require('../utils/sla');
+const { deadlineSql, nowSql, refreshSlaBreaches } = require('../utils/sla');
 const { validateEnum, validatePassword, validateRequired } = require('../utils/validation');
 const router = express.Router();
 
@@ -29,7 +29,7 @@ router.get('/attention', async (req, res) => {
        AND is_trashed = FALSE
        AND status NOT IN ('Resolved', 'Closed', 'Rejected')
        AND sla_deadline IS NOT NULL
-       AND sla_deadline <= DATE_ADD(NOW(), INTERVAL 24 HOUR)`,
+       AND sla_deadline <= DATE_ADD(${nowSql()}, INTERVAL 24 HOUR)`,
       [req.user.id]
     );
     const notifications = await getUnreadNotificationCount(pool, 'officer', req.user.id);
@@ -81,6 +81,7 @@ router.get('/complaints', async (req, res) => {
       currentHierarchyLevelId: c.current_hierarchy_level_id,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
+      slaStartedAt: c.sla_started_at,
       slaDeadline: c.sla_deadline,
       slaBreached: c.sla_breached === 1
     }));
@@ -131,6 +132,7 @@ router.get('/complaints/:id', async (req, res) => {
       currentHierarchyLevelId: c.current_hierarchy_level_id,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
+      slaStartedAt: c.sla_started_at,
       slaDeadline: c.sla_deadline,
       slaBreached: c.sla_breached === 1,
       history: history.map(h => ({ date: h.created_at, action: h.action, actor: h.actor, details: h.details }))
@@ -157,10 +159,17 @@ router.put('/complaints/:id/status', async (req, res) => {
     const [result] = await pool.query(
       `UPDATE complaints SET
         status = ?,
-        sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('In Progress', 'Awaiting Materials') THEN ${deadlineSql()} ELSE sla_deadline END,
+        sla_started_at = CASE
+          WHEN sla_started_at IS NULL AND ? IN ('In Progress', 'Awaiting Materials') THEN ${nowSql()}
+          ELSE sla_started_at
+        END,
+        sla_deadline = CASE
+          WHEN sla_deadline IS NULL AND ? IN ('In Progress', 'Awaiting Materials') THEN ${deadlineSql('priority', `COALESCE(sla_started_at, ${nowSql()})`)}
+          ELSE sla_deadline
+        END,
         updated_at = NOW()
        WHERE id = ? AND assigned_officer_id = ?`,
-      [status, status, req.params.id, req.user.id]
+      [status, status, status, req.params.id, req.user.id]
     );
 
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });

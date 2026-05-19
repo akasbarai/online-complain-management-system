@@ -19,6 +19,7 @@ export enum ComplaintStatus {
 }
 
 export enum Priority {
+  UNASSIGNED = 'Unassigned',
   LOW = 'Low',
   MEDIUM = 'Medium',
   HIGH = 'High',
@@ -93,6 +94,7 @@ export interface Complaint {
     action: string;
     actor: string;
   }>;
+  slaStartedAt?: string;
   slaDeadline?: string;
   slaBreached?: boolean;
   isTrashed?: boolean;

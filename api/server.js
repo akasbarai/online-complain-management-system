@@ -25,6 +25,28 @@ const ensureMigrations = async () => {
     "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT",
     "ALTER TABLE complaints ADD COLUMN latitude DECIMAL(10, 8) DEFAULT NULL AFTER location",
     "ALTER TABLE complaints ADD COLUMN longitude DECIMAL(11, 8) DEFAULT NULL AFTER latitude",
+    "ALTER TABLE complaints ADD COLUMN sla_started_at DATETIME DEFAULT NULL AFTER current_hierarchy_level_id",
+    `UPDATE complaints
+     SET sla_started_at = CASE
+       WHEN sla_deadline IS NOT NULL THEN DATE_SUB(sla_deadline, INTERVAL 72 HOUR)
+       WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials') THEN COALESCE(updated_at, created_at, NOW())
+       ELSE sla_started_at
+     END
+     WHERE sla_started_at IS NULL`,
+    `UPDATE complaints
+     SET sla_deadline = DATE_ADD(
+       sla_started_at,
+       INTERVAL CASE priority
+         WHEN 'Critical' THEN 24
+         WHEN 'High' THEN 48
+         WHEN 'Medium' THEN 72
+         WHEN 'Low' THEN 120
+         ELSE 72
+       END HOUR
+     )
+     WHERE sla_started_at IS NOT NULL
+       AND status IN ('Assigned', 'In Progress', 'Awaiting Materials')
+       AND sla_breached = FALSE`,
     "ALTER TABLE notifications ADD COLUMN recipient_type ENUM('User', 'Officer') DEFAULT NULL",
     "ALTER TABLE notifications ADD COLUMN recipient_id VARCHAR(50) DEFAULT NULL",
     `CREATE TABLE IF NOT EXISTS notification_reads (

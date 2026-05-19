@@ -51,6 +51,10 @@ export const Hierarchy = () => {
     }
   };
 
+  const refreshAttention = () => {
+    window.dispatchEvent(new Event('ocms:attention-refresh'));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -66,7 +70,8 @@ export const Hierarchy = () => {
       }
       setNewNodeParentId(null);
       setIsModalOpen(false);
-      refresh();
+      await refresh();
+      refreshAttention();
     } catch (err: any) {
       alert(err.message);
     }
@@ -86,14 +91,24 @@ export const Hierarchy = () => {
   };
 
   const toggleNodeStatus = async (id: string) => {
-    await HierarchyService.toggleStatus(id);
-    refresh();
+    try {
+      await HierarchyService.toggleStatus(id);
+      await refresh();
+      refreshAttention();
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this hierarchy level?")) {
-      await HierarchyService.delete(id);
-      refresh();
+      try {
+        await HierarchyService.delete(id);
+        await refresh();
+        refreshAttention();
+      } catch (err: any) {
+        alert(err.message);
+      }
     }
   };
 

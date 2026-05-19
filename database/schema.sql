@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS complaints (
     priority ENUM('Unassigned', 'Low', 'Medium', 'High', 'Critical') DEFAULT 'Medium',
     assigned_officer_id VARCHAR(50) DEFAULT NULL,
     current_hierarchy_level_id VARCHAR(50) DEFAULT NULL,
+    sla_started_at DATETIME DEFAULT NULL,
     sla_deadline DATETIME DEFAULT NULL,
     sla_breached BOOLEAN DEFAULT FALSE,
     is_trashed BOOLEAN DEFAULT FALSE,
@@ -138,3 +139,4 @@ CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_ty
 -- ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT;
 -- ALTER TABLE complaints ADD COLUMN latitude DECIMAL(10, 8) DEFAULT NULL AFTER location;
 -- ALTER TABLE complaints ADD COLUMN longitude DECIMAL(11, 8) DEFAULT NULL AFTER latitude;
+-- ALTER TABLE complaints ADD COLUMN sla_started_at DATETIME DEFAULT NULL AFTER current_hierarchy_level_id;
