@@ -115,7 +115,7 @@ export const Register = () => {
   const handleResetStorage = () => {
     if (confirm("This will clear local portal data from this browser. Continue?")) {
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('civic_')) localStorage.removeItem(key);
+        if (key.startsWith('ocms_')) localStorage.removeItem(key);
       });
       window.location.reload();
     }

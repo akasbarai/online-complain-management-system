@@ -156,7 +156,7 @@ export const Profile = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Office Location</span>
-                  <span>Civic Center, Block B</span>
+                  <span>OCMS Office, Block B</span>
                 </div>
               </div>
             </div>

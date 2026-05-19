@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS civicresolve;
-USE civicresolve;
+CREATE DATABASE IF NOT EXISTS ocms;
+USE ocms;
 
 CREATE TABLE IF NOT EXISTS departments (
     id VARCHAR(50) PRIMARY KEY,

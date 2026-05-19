@@ -1,7 +1,7 @@
 {
-  "name": "civicresolve-api",
+  "name": "ocms-api",
   "version": "1.0.0",
-  "description": "Backend API for CivicResolve Complaint Management System",
+  "description": "Backend API for OCMS Complaint Management System",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",

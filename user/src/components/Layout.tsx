@@ -65,8 +65,12 @@ export const Layout = () => {
     };
 
     loadAttention();
+    window.addEventListener('ocms:notifications-read', loadAttention);
     const interval = setInterval(loadAttention, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener('ocms:notifications-read', loadAttention);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -140,9 +144,9 @@ export const Layout = () => {
             >
               {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary-600 font-bold text-white shadow-sm shadow-primary-600/20">C</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary-600 font-bold text-white shadow-sm shadow-primary-600/20">O</div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-950">CivicResolve</h1>
+              <h1 className="text-lg font-bold tracking-tight text-slate-950">OCMS</h1>
               <p className="hidden text-xs font-medium text-slate-500 sm:block">Citizen Portal</p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-# CivicResolve - Online Complaint Management System
+# OCMS - Online Complaint Management System
 
 A full-stack complaint management system with three role-based portals backed by a MySQL database and REST API.
 
@@ -65,7 +65,7 @@ mysql -u root -p < database/schema.sql
 ```
 
 Enter your MySQL root password when prompted. This will:
-- Create the `civicresolve` database
+- Create the `ocms` database
 - Create all 8 tables with proper structure
 - Set up indexes and foreign key relationships
 
@@ -88,14 +88,14 @@ Then paste the contents of `database/schema.sql` and press Enter.
 ### Verify Tables Were Created
 
 ```sql
-USE civicresolve;
+USE ocms;
 SHOW TABLES;
 ```
 
 You should see these 8 tables:
 ```
 +-------------------------+
-| Tables_in_civicresolve  |
+| Tables_in_ocms  |
 +-------------------------+
 | departments             |
 | hierarchy_levels        |
@@ -130,9 +130,9 @@ You should see these 8 tables:
    DB_HOST=localhost
    DB_USER=root
    DB_PASSWORD=your_mysql_password
-   DB_NAME=civicresolve
+   DB_NAME=ocms
    DB_PORT=3306
-   JWT_SECRET=civicresolve_secret_key_change_in_production_2024
+   JWT_SECRET=ocms_secret_key_change_in_production_2024
    ADMIN_PASSWORD=change_this_before_seeding
    PORT=4000
    ```
@@ -142,7 +142,7 @@ You should see these 8 tables:
    | `DB_HOST` | MySQL server address | `localhost` (same machine) |
    | `DB_USER` | MySQL username | `root` (default admin user) |
    | `DB_PASSWORD` | **Your MySQL password** | Whatever you set during MySQL install |
-   | `DB_NAME` | Database name | `civicresolve` (must match schema.sql) |
+   | `DB_NAME` | Database name | `ocms` (must match schema.sql) |
    | `DB_PORT` | MySQL port | `3306` (default) |
    | `JWT_SECRET` | Secret for signing tokens | Use a long random string |
    | `ADMIN_PASSWORD` | First admin password used by `seed-admin.js` | Use a strong one-time password |
@@ -164,7 +164,7 @@ api/.env  (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
     ↓ creates pool
 api/db/connection.js  (mysql.createPool)
     ↓ connects to
-MySQL Server (localhost:3306) → civicresolve database
+MySQL Server (localhost:3306) → ocms database
 ```
 
 The connection pool (`mysql2/promise`) handles:
@@ -195,7 +195,7 @@ node seed-admin.js
 This will:
 1. Create a default department (**General Administration**)
 2. Create an admin account with these credentials:
-   - **Email**: `admin@civicresolve.com`
+   - **Email**: `admin@ocms.com`
    - **Password**: `a`
 
 > **Important**: Run this only once. Running it again will skip if the admin already exists.
@@ -211,7 +211,7 @@ npm run dev
 
 You should see:
 ```
-CivicResolve API running on http://localhost:4000
+OCMS API running on http://localhost:4000
 ```
 
 Verify the connection is working:
@@ -228,7 +228,7 @@ Expected response:
 If it says `"database":"Failed"`, check:
 - MySQL is running
 - `api/.env` has the correct `DB_PASSWORD`
-- The `civicresolve` database exists (`SHOW DATABASES;` in MySQL)
+- The `ocms` database exists (`SHOW DATABASES;` in MySQL)
 
 ---
 
@@ -268,7 +268,7 @@ Follow this order to set up the system:
 
 ### 1. Login as Admin
 - Go to `http://localhost:5173`
-- Email: `admin@civicresolve.com`
+- Email: `admin@ocms.com`
 - Password: value from `ADMIN_PASSWORD` (`admin123` only when seeding locally without `NODE_ENV=production`)
 
 ### 2. Create Departments
@@ -493,13 +493,13 @@ notifications
   ```sql
   SHOW DATABASES;
   ```
-  You should see `civicresolve` in the list.
+  You should see `ocms` in the list.
 
 ### "Access denied for user 'root'"
 - Your MySQL password in `.env` is wrong
 - Or your MySQL user doesn't have permission. Fix with:
   ```sql
-  GRANT ALL PRIVILEGES ON civicresolve.* TO 'root'@'localhost';
+  GRANT ALL PRIVILEGES ON ocms.* TO 'root'@'localhost';
   FLUSH PRIVILEGES;
   ```
 

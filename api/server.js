@@ -102,7 +102,7 @@ app.use((err, req, res, next) => {
 ensureMigrations()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`CivicResolve API running on http://localhost:${PORT}`);
+      console.log(`OCMS API running on http://localhost:${PORT}`);
     });
   })
   .catch((err) => {

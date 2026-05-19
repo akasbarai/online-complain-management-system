@@ -154,7 +154,7 @@ export const Login = () => {
                   <Shield size={26} />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-white">CivicResolve</p>
+                  <p className="text-sm font-semibold text-white">OCMS</p>
                   <p className="text-xs text-slate-300">Officer access console</p>
                 </div>
               </div>

@@ -9,7 +9,7 @@ const getPortalHref = (productionPath: string, devUrl: string) =>
 const portalLinks = [
   {
     title: 'Citizen Portal',
-    description: 'Submit civic issues and follow every update from one account.',
+    description: 'Submit public complaints and follow every update from one account.',
     href: '#/login',
     icon: UsersRound,
   },
@@ -42,9 +42,9 @@ export const Home = () => {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2 text-white">
             <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary-600 font-bold shadow-sm">
-              C
+              O
             </span>
-            <span className="text-lg font-bold">CivicResolve</span>
+            <span className="text-lg font-bold">OCMS</span>
           </Link>
 
           <nav className="flex items-center gap-2">
@@ -77,10 +77,10 @@ export const Home = () => {
               Online Complaint Management System
             </p>
             <h1 className="max-w-3xl text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
-              CivicResolve
+              OCMS
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-slate-200 sm:text-lg">
-              A civic complaint desk for citizens, officers, and administrators to move local issues from report to resolution.
+              An online complaint desk for citizens, officers, and administrators to move local issues from report to resolution.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link to={currentUser ? '/dashboard' : '/register'}>

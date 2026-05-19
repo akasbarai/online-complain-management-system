@@ -110,14 +110,14 @@ export const Officers = () => {
     if (!newCredentials) return { subject: '', body: '', to: '' };
     const { officer, password } = newCredentials;
     const subject = "Welcome to OCMS - Your Account Details";
-    const body = `Hello ${officer.name},\n\nYour account has been successfully created in the OCMS Portal.\n\nHere are your temporary login credentials:\nEmail: ${officer.email}\nPassword: ${password}\n\nPlease login and change your password immediately.\n\nRegards,\nCivicResolve Admin Team`;
+    const body = `Hello ${officer.name},\n\nYour account has been successfully created in the OCMS Portal.\n\nHere are your temporary login credentials:\nEmail: ${officer.email}\nPassword: ${password}\n\nPlease login and change your password immediately.\n\nRegards,\nOCMS Admin Team`;
     return { subject, body, to: officer.email };
   };
 
   const getResetEmailData = () => {
     const { link, email } = resetModal;
     const subject = "Password Reset Request - OCMS";
-    const body = `Hello,\n\nA password reset was requested for your Officer account.\n\nClick the link below to set a new password:\n${link}\n\nIf you did not request this, please contact the administrator immediately.\n\nRegards,\nCivicResolve Admin Team`;
+    const body = `Hello,\n\nA password reset was requested for your Officer account.\n\nClick the link below to set a new password:\n${link}\n\nIf you did not request this, please contact the administrator immediately.\n\nRegards,\nOCMS Admin Team`;
     return { subject, body, to: email };
   };
 

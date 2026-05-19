@@ -61,7 +61,7 @@ export const Users = () => {
     
     if (link) {
        const subject = "Action Required: Verify your OCMS Account";
-       const body = `Hello,\n\nYour sign-up details have been verified by the Administration.\n\nPlease click the link below to verify your email and activate your account:\n${link}\n\nRegards,\nCivicResolve Admin Team`;
+       const body = `Hello,\n\nYour sign-up details have been verified by the Administration.\n\nPlease click the link below to verify your email and activate your account:\n${link}\n\nRegards,\nOCMS Admin Team`;
        
        setEmailModal({
          isOpen: true,

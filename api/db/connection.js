@@ -20,7 +20,7 @@ const dbConfig = {
   host: process.env.MYSQLHOST || process.env.DB_HOST || urlConfig.host || 'localhost',
   user: process.env.MYSQLUSER || process.env.DB_USER || urlConfig.user || 'root',
   password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || urlConfig.password || '',
-  database: process.env.MYSQLDATABASE || process.env.DB_NAME || urlConfig.database || 'civicresolve',
+  database: process.env.MYSQLDATABASE || process.env.DB_NAME || urlConfig.database || 'ocms',
   port: Number(process.env.MYSQLPORT || process.env.DB_PORT || urlConfig.port || 3306),
   waitForConnections: true,
   connectionLimit: 10,

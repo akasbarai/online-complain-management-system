@@ -44,7 +44,7 @@ DB_HOST=your-render-mysql-private-host
 DB_PORT=3306
 DB_USER=your_mysql_user
 DB_PASSWORD=your_mysql_password
-DB_NAME=civicresolve
+DB_NAME=ocms
 ```
 
 If Render gives both an internal/private host and a public host, use the internal/private host because your API is also on Render.
@@ -156,13 +156,13 @@ If your provider says SSL is required, your current API may need a small `mysql2
 Create a database named:
 
 ```env
-civicresolve
+ocms
 ```
 
 Then apply the schema:
 
 ```bash
-mysql -h YOUR_DB_HOST -P YOUR_DB_PORT -u YOUR_DB_USER -p civicresolve < database/schema.sql
+mysql -h YOUR_DB_HOST -P YOUR_DB_PORT -u YOUR_DB_USER -p ocms < database/schema.sql
 ```
 
 The API also runs JavaScript migrations on startup, but applying `database/schema.sql` is still the easiest first setup path.
@@ -216,7 +216,7 @@ PORT=4000
 DB_HOST=YOUR_MYSQL_HOST
 DB_USER=YOUR_MYSQL_USER
 DB_PASSWORD=YOUR_MYSQL_PASSWORD
-DB_NAME=civicresolve
+DB_NAME=ocms
 DB_PORT=3306
 DB_CONNECT_TIMEOUT=30000
 
@@ -244,7 +244,7 @@ After saving the settings:
 The service is healthy when you see:
 
 ```text
-CivicResolve API running on http://localhost:4000
+OCMS API running on http://localhost:4000
 ```
 
 Then test the health endpoint:
@@ -285,7 +285,7 @@ node seed-admin.js
 This creates:
 
 ```text
-Email: admin@civicresolve.com
+Email: admin@ocms.com
 Password: value from ADMIN_PASSWORD
 ```
 
@@ -368,7 +368,7 @@ Check:
 If Render logs show this:
 
 ```text
-MySQL config: root@localhost:3306/civicresolve
+MySQL config: root@localhost:3306/ocms
 connect ECONNREFUSED 127.0.0.1:3306
 connect ECONNREFUSED ::1:3306
 ```
@@ -381,7 +381,7 @@ Fix it by setting these environment variables in the Render web service:
 DB_HOST=your-hosted-mysql-host
 DB_USER=your-hosted-mysql-user
 DB_PASSWORD=your-hosted-mysql-password
-DB_NAME=civicresolve
+DB_NAME=ocms
 DB_PORT=3306
 ```
 
@@ -390,7 +390,7 @@ Then click **Manual Deploy** or **Restart service**.
 After the fix, the Render log should no longer say:
 
 ```text
-root@localhost:3306/civicresolve
+root@localhost:3306/ocms
 ```
 
 It should show your hosted MySQL host instead.

@@ -59,10 +59,10 @@ export const Login = () => {
         <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1fr_440px] lg:items-center">
           <div className="hidden text-white lg:block">
             <Link to="/" className="mb-10 inline-flex items-center gap-2">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-600 font-bold shadow-sm">C</span>
-              <span className="text-xl font-bold">CivicResolve</span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-600 font-bold shadow-sm">O</span>
+              <span className="text-xl font-bold">OCMS</span>
             </Link>
-            <h1 className="max-w-lg text-4xl font-bold leading-tight">Citizen access for civic complaint tracking.</h1>
+            <h1 className="max-w-lg text-4xl font-bold leading-tight">Citizen access for online complaint tracking.</h1>
             <div className="mt-8 grid max-w-md gap-3">
               {['Submit verified complaints', 'Track officer updates', 'Receive private notifications'].map(item => (
                 <div key={item} className="flex items-center gap-3 rounded-md bg-white/10 px-4 py-3 text-sm text-slate-100 backdrop-blur">

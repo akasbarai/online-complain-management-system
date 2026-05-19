@@ -41,7 +41,7 @@ const SidebarItem = ({ to, icon: Icon, label, count }: { to: string, icon: any, 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [loginTime, setLoginTime] = useState('');
-  const [adminEmail, setAdminEmail] = useState('admin@civic.gov');
+  const [adminEmail, setAdminEmail] = useState('admin@ocms.com');
   
   // Notification State
   const [lastNotificationCount, setLastNotificationCount] = useState(0);

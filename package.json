@@ -1,5 +1,5 @@
 {
-  "name": "civicresolve-deploy",
+  "name": "ocms-deploy",
   "private": true,
   "version": "1.0.0",
   "scripts": {

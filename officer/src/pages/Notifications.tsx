@@ -13,7 +13,12 @@ export const Notifications = () => {
     setLoading(true);
     try {
       const data = await NotificationService.getAll();
-      setNotifications(data);
+      const unreadNotifications = data.filter((notification: Notification) => !notification.read);
+      if (unreadNotifications.length > 0) {
+        await Promise.all(unreadNotifications.map((notification: Notification) => NotificationService.markAsRead(notification.id)));
+      }
+      setNotifications(data.map((notification: Notification) => ({ ...notification, read: true })));
+      window.dispatchEvent(new Event('ocms:notifications-read'));
     } catch {
       setNotifications([]);
     } finally {

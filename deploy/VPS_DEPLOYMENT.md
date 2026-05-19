@@ -1,4 +1,4 @@
-# CivicResolve VPS Deployment
+# OCMS VPS Deployment
 
 Target domain:
 
@@ -61,9 +61,9 @@ sudo mysql
 Run this SQL. Replace `CHANGE_ME_STRONG_PASSWORD`.
 
 ```sql
-CREATE DATABASE IF NOT EXISTS civicresolve;
+CREATE DATABASE IF NOT EXISTS ocms;
 CREATE USER IF NOT EXISTS 'ocms_user'@'localhost' IDENTIFIED BY 'CHANGE_ME_STRONG_PASSWORD';
-GRANT ALL PRIVILEGES ON civicresolve.* TO 'ocms_user'@'localhost';
+GRANT ALL PRIVILEGES ON ocms.* TO 'ocms_user'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
@@ -71,7 +71,7 @@ EXIT;
 Import schema:
 
 ```bash
-mysql -u ocms_user -p civicresolve < database/schema.sql
+mysql -u ocms_user -p ocms < database/schema.sql
 ```
 
 ## 5. Configure API Environment
@@ -88,7 +88,7 @@ Use this template:
 DB_HOST=localhost
 DB_USER=ocms_user
 DB_PASSWORD=CHANGE_ME_STRONG_PASSWORD
-DB_NAME=civicresolve
+DB_NAME=ocms
 DB_PORT=3306
 JWT_SECRET=CHANGE_ME_LONG_RANDOM_SECRET
 ADMIN_PASSWORD=CHANGE_ME_LONG_RANDOM_ADMIN_PASSWORD
@@ -174,7 +174,7 @@ API:      https://ocms.akashbarai.com.np/health
 Default admin after seeding:
 
 ```text
-Email: admin@civicresolve.com
+Email: admin@ocms.com
 Password: value from ADMIN_PASSWORD
 ```
 

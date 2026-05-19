@@ -7,7 +7,7 @@ async function seed() {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'civicresolve'
+    database: process.env.DB_NAME || 'ocms'
   });
 
   console.log('Connected to database');
@@ -39,10 +39,10 @@ async function seed() {
       await connection.query(
         `INSERT INTO officers (id, name, email, password_hash, department_id, role, jurisdiction, status)
          VALUES (?, ?, ?, ?, ?, 'Admin', 'System-wide', 'Active')`,
-        [adminId, 'System Admin', 'admin@civicresolve.com', passwordHash, 'dept-general']
+        [adminId, 'System Admin', 'admin@ocms.com', passwordHash, 'dept-general']
       );
       console.log('Created admin account:');
-      console.log('  Email: admin@civicresolve.com');
+      console.log('  Email: admin@ocms.com');
       console.log(`  Password: ${adminPassword}`);
     }
   } catch (err) {

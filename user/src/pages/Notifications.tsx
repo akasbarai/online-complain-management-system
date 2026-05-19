@@ -18,7 +18,12 @@ export const Notifications = () => {
     setLoading(true);
     try {
       const data = await NotificationService.getAll();
-      setNotifications(data);
+      const unreadNotifications = data.filter((notification: Notification) => !notification.read);
+      if (unreadNotifications.length > 0) {
+        await Promise.all(unreadNotifications.map((notification: Notification) => NotificationService.markAsRead(notification.id)));
+      }
+      setNotifications(data.map((notification: Notification) => ({ ...notification, read: true })));
+      window.dispatchEvent(new Event('ocms:notifications-read'));
     } catch {
       setNotifications([]);
     } finally {
@@ -43,7 +48,7 @@ export const Notifications = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Notifications</h1>
-          <p className="page-subtitle">Updates from CivicResolve and assigned officers.</p>
+          <p className="page-subtitle">Updates from OCMS and assigned officers.</p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchNotifications} className="gap-2">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh

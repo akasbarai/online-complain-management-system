@@ -63,6 +63,7 @@ export const ComplaintService = {
 
 export const NotificationService = {
   getAll: () => api('/officer/notifications'),
+  markAsRead: (id) => api(`/officer/notifications/${id}/read`, { method: 'PUT' }),
   getRecent: async () => {
     const all = await NotificationService.getAll();
     return all.slice(0, 5);
