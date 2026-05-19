@@ -40,6 +40,8 @@ export interface Complaint {
   userId: string;
   description: string;
   location?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   imageUrl?: string;
   status: ComplaintStatus;
   priority?: Priority;
@@ -49,6 +51,7 @@ export interface Complaint {
   updatedAt: string;
   history: TimelineEvent[];
   slaDeadline?: string;
+  slaBreached?: boolean;
 }
 
 export interface User {

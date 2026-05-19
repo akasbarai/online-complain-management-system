@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Badge, Modal, Textarea, Spinner } from '../components/ui';
 import { ComplaintService } from '../services/api';
+import { LocationMap } from '../components/LocationMap';
 import { Complaint, ComplaintStatus } from '../types';
 import { ArrowLeft, MapPin, Calendar, CheckCircle, ArrowUpRight, Ban, Shield, Clock, FileText } from 'lucide-react';
 
@@ -124,6 +125,12 @@ export const ComplaintDetails = () => {
                 </div>
              </div>
            </Card>
+
+           <LocationMap
+             location={complaint.location}
+             latitude={complaint.latitude}
+             longitude={complaint.longitude}
+           />
 
            {complaint.imageUrl && (
              <Card className="p-6">

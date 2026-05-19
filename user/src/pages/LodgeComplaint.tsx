@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, FileText, MapPin, Navigation, Send, UploadCloud } from 'lucide-react';
+import { AlertCircle, Check, FileText, Send, UploadCloud } from 'lucide-react';
 import { Button, Card, Input, Select, Spinner, Textarea } from '../components/ui';
 import { ComplaintService, DeptService } from '../services/api';
+import { LocationPicker } from '../components/LocationPicker';
 import { compressImage } from '../utils/compressImage';
 
 const StepLabel = ({ number, title }: { number: number; title: string }) => (
@@ -14,18 +15,29 @@ const StepLabel = ({ number, title }: { number: number; title: string }) => (
   </div>
 );
 
+type ComplaintFormData = {
+  title: string;
+  departmentId: string;
+  description: string;
+  location: string;
+  latitude: number | null;
+  longitude: number | null;
+  imageUrl: string;
+};
+
 export const LodgeComplaint = () => {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ComplaintFormData>({
     title: '',
     departmentId: '',
     description: '',
     location: '',
+    latitude: null,
+    longitude: null,
     imageUrl: '',
   });
 
@@ -52,26 +64,6 @@ export const LodgeComplaint = () => {
       setError(err.message);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleGetCurrentLocation = () => {
-    setIsGettingLocation(true);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setFormData({ ...formData, location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` });
-          setIsGettingLocation(false);
-        },
-        () => {
-          setError('Could not get your current location. Please type the address manually.');
-          setIsGettingLocation(false);
-        }
-      );
-    } else {
-      setError('Geolocation is not supported by this browser.');
-      setIsGettingLocation(false);
     }
   };
 
@@ -136,25 +128,12 @@ export const LodgeComplaint = () => {
               <section>
                 <StepLabel number={2} title="Location and description" />
                 <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Exact Location</label>
-                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                        <Input className="pl-9" required placeholder="Street, ward, landmark, or coordinates" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleGetCurrentLocation}
-                        disabled={isGettingLocation}
-                        className="gap-2"
-                      >
-                        <Navigation size={16} />
-                        {isGettingLocation ? 'Locating' : 'Use Current'}
-                      </Button>
-                    </div>
-                  </div>
+                  <LocationPicker
+                    location={formData.location}
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onChange={value => setFormData(prev => ({ ...prev, ...value }))}
+                  />
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Detailed Description</label>
                     <Textarea required rows={6} placeholder="Describe the issue, impact, and any useful timing details." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />

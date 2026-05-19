@@ -23,6 +23,8 @@ const ensureMigrations = async () => {
     "ALTER TABLE users ADD COLUMN password_reset_requested BOOLEAN DEFAULT FALSE",
     "ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME DEFAULT NULL",
     "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT",
+    "ALTER TABLE complaints ADD COLUMN latitude DECIMAL(10, 8) DEFAULT NULL AFTER location",
+    "ALTER TABLE complaints ADD COLUMN longitude DECIMAL(11, 8) DEFAULT NULL AFTER latitude",
     "ALTER TABLE notifications ADD COLUMN recipient_type ENUM('User', 'Officer') DEFAULT NULL",
     "ALTER TABLE notifications ADD COLUMN recipient_id VARCHAR(50) DEFAULT NULL",
     `CREATE TABLE IF NOT EXISTS notification_reads (
@@ -35,7 +37,8 @@ const ensureMigrations = async () => {
       FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
     )`,
     "CREATE INDEX idx_notifications_recipient ON notifications(recipient_type, recipient_id)",
-    "CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id)"
+    "CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id)",
+    "CREATE INDEX idx_complaints_coordinates ON complaints(latitude, longitude)"
   ];
 
   for (const sql of migrations) {

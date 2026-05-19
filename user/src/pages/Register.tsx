@@ -6,6 +6,9 @@ import { AuthService } from '../services/api';
 import { UserPlus, CheckCircle, Clock, Camera, Upload, FileText } from 'lucide-react';
 import { compressImage } from '../utils/compressImage';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MOBILE_RE = /^98\d{8}$/;
+
 export const Register = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -18,9 +21,46 @@ export const Register = () => {
     idCardUrl: ''
   });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
 
   // Helper to compress image (imported from utils)
+
+  const updateField = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const nextErrors: Record<string, string> = {};
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const mobile = formData.mobile.trim();
+    const address = formData.address.trim();
+
+    if (!name) nextErrors.name = 'Full name is required.';
+    if (!email) {
+      nextErrors.email = 'Email address is required.';
+    } else if (!EMAIL_RE.test(email)) {
+      nextErrors.email = 'Enter a valid email address.';
+    }
+    if (!mobile) {
+      nextErrors.mobile = 'Phone number is required.';
+    } else if (!MOBILE_RE.test(mobile)) {
+      nextErrors.mobile = 'Phone number must start with 98 and be exactly 10 digits.';
+    }
+    if (!formData.password.trim()) nextErrors.password = 'Password is required.';
+    if (!address) nextErrors.address = 'Address is required.';
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'profilePicture' | 'idCardUrl') => {
     const file = e.target.files?.[0];
@@ -42,12 +82,21 @@ export const Register = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    if (!validateForm()) return;
+
     if (!formData.idCardUrl) {
       setError("Please upload an ID Card/Document for verification.");
       return;
     }
     try {
-      await AuthService.register(formData);
+      await AuthService.register({
+        ...formData,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        mobile: formData.mobile.trim(),
+        address: formData.address.trim()
+      });
       setSuccess(true);
     } catch (err: any) {
       setSuccess(false);
@@ -146,25 +195,80 @@ export const Register = () => {
            <div className="space-y-4">
              <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-               <Input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Jane Doe" />
+               <Input
+                 required
+                 value={formData.name}
+                 onChange={e => updateField('name', e.target.value)}
+                 placeholder="Enter your full name"
+                 aria-invalid={Boolean(fieldErrors.name)}
+                 aria-describedby={fieldErrors.name ? 'name-error' : undefined}
+                 className={fieldErrors.name ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : undefined}
+               />
+               {fieldErrors.name && <p id="name-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.name}</p>}
              </div>
              <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address <span className="text-red-500">*</span></label>
-               <Input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="jane@example.com" />
+               <Input
+                 required
+                 type="email"
+                 value={formData.email}
+                 onChange={e => updateField('email', e.target.value)}
+                 placeholder="enter your email address"
+                 autoComplete="email"
+                 aria-invalid={Boolean(fieldErrors.email)}
+                 aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+                 className={fieldErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : undefined}
+               />
+               {fieldErrors.email && <p id="email-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.email}</p>}
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div>
                  <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
-                 <Input required type="tel" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} placeholder="+1 234 567 8900" />
+                 <Input
+                   required
+                   type="tel"
+                   inputMode="numeric"
+                   maxLength={10}
+                   pattern="98[0-9]{8}"
+                   value={formData.mobile}
+                   onChange={e => updateField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                   placeholder="98XXXXXXXX"
+                   autoComplete="tel"
+                   aria-invalid={Boolean(fieldErrors.mobile)}
+                   aria-describedby={fieldErrors.mobile ? 'mobile-error' : undefined}
+                   className={fieldErrors.mobile ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : undefined}
+                 />
+                 {fieldErrors.mobile && <p id="mobile-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.mobile}</p>}
                </div>
                <div>
                  <label className="block text-sm font-medium text-slate-700 mb-1">Password <span className="text-red-500">*</span></label>
-                 <Input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Enter password" />
+                 <Input
+                   required
+                   type="password"
+                   value={formData.password}
+                   onChange={e => updateField('password', e.target.value)}
+                   placeholder="enter password"
+                   autoComplete="new-password"
+                   aria-invalid={Boolean(fieldErrors.password)}
+                   aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                   className={fieldErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : undefined}
+                 />
+                 {fieldErrors.password && <p id="password-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.password}</p>}
                </div>
              </div>
              <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">Residential Address <span className="text-red-500">*</span></label>
-               <Input required value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="123 Street, City" />
+               <Input
+                 required
+                 value={formData.address}
+                 onChange={e => updateField('address', e.target.value)}
+                 placeholder="Enter your address"
+                 autoComplete="street-address"
+                 aria-invalid={Boolean(fieldErrors.address)}
+                 aria-describedby={fieldErrors.address ? 'address-error' : undefined}
+                 className={fieldErrors.address ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : undefined}
+               />
+               {fieldErrors.address && <p id="address-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.address}</p>}
              </div>
 
              {/* ID Card Upload */}

@@ -1,10 +1,13 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MOBILE_RE = /^98\d{8}$/;
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeMobile = (mobile) => String(mobile || '').trim();
 
 const isNonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
 
 const isValidEmail = (email) => EMAIL_RE.test(normalizeEmail(email));
+const isValidMobile = (mobile) => MOBILE_RE.test(normalizeMobile(mobile));
 
 const validateRequired = (fields) => {
   const missing = Object.entries(fields)
@@ -28,6 +31,8 @@ const validateEnum = (value, allowed, label) => {
 module.exports = {
   isNonEmpty,
   isValidEmail,
+  isValidMobile,
+  normalizeMobile,
   normalizeEmail,
   validateEnum,
   validatePassword,

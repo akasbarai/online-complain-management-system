@@ -61,6 +61,8 @@ export interface Complaint {
   userId: string;
   description: string;
   location?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   imageUrl?: string;
   status: ComplaintStatus;
   priority?: Priority;

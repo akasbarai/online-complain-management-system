@@ -76,6 +76,7 @@ export const Login = () => {
             <Input 
               type="email" 
               value={email} 
+              placeholder="Enter your email address."
               onChange={e => {
                 setEmail(e.target.value);
                 if (errors.email) setErrors({ ...errors, email: undefined });
@@ -92,6 +93,7 @@ export const Login = () => {
             <Input 
               type="password" 
               value={password} 
+              placeholder="enter password"
               onChange={e => {
                 setPassword(e.target.value);
                 if (errors.password) setErrors({ ...errors, password: undefined });

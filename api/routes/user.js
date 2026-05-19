@@ -3,13 +3,38 @@ const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
 const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { refreshSlaBreaches } = require('../utils/sla');
 const { validatePassword, validateRequired } = require('../utils/validation');
 const router = express.Router();
+
+const parseCoordinate = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : NaN;
+};
+
+const validateCoordinates = (latitude, longitude) => {
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    return 'Location coordinates must be valid numbers';
+  }
+  if ((latitude === null) !== (longitude === null)) {
+    return 'Both latitude and longitude are required for map location';
+  }
+  if (latitude !== null && (latitude < -90 || latitude > 90)) {
+    return 'Latitude must be between -90 and 90';
+  }
+  if (longitude !== null && (longitude < -180 || longitude > 180)) {
+    return 'Longitude must be between -180 and 180';
+  }
+  return null;
+};
 
 router.use(authMiddleware('user'));
 
 router.get('/attention', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [[activeComplaints]] = await pool.query(
       `SELECT COUNT(*) as count FROM complaints
        WHERE user_id = ?
@@ -37,6 +62,8 @@ router.get('/attention', async (req, res) => {
 
 router.get('/complaints', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [complaints] = await pool.query(`
       SELECT c.*, d.name as department_name, o.name as officer_name
       FROM complaints c
@@ -64,6 +91,8 @@ router.get('/complaints', async (req, res) => {
       userId: c.user_id,
       description: c.description,
       location: c.location,
+      latitude: c.latitude === null ? null : Number(c.latitude),
+      longitude: c.longitude === null ? null : Number(c.longitude),
       imageUrl: c.image_url,
       status: c.status,
       priority: c.priority,
@@ -72,6 +101,7 @@ router.get('/complaints', async (req, res) => {
       createdAt: c.created_at,
       updatedAt: c.updated_at,
       slaDeadline: c.sla_deadline,
+      slaBreached: c.sla_breached === 1,
       history: history.filter(h => h.complaint_id === c.id).map(h => ({
         date: h.created_at,
         action: h.action,
@@ -89,6 +119,8 @@ router.get('/complaints', async (req, res) => {
 
 router.get('/complaints/:id', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [complaints] = await pool.query(`
       SELECT c.*, d.name as department_name, o.name as officer_name, hl.name as hierarchy_name
       FROM complaints c
@@ -114,6 +146,8 @@ router.get('/complaints/:id', async (req, res) => {
       userId: c.user_id,
       description: c.description,
       location: c.location,
+      latitude: c.latitude === null ? null : Number(c.latitude),
+      longitude: c.longitude === null ? null : Number(c.longitude),
       imageUrl: c.image_url,
       status: c.status,
       priority: c.priority,
@@ -122,6 +156,7 @@ router.get('/complaints/:id', async (req, res) => {
       createdAt: c.created_at,
       updatedAt: c.updated_at,
       slaDeadline: c.sla_deadline,
+      slaBreached: c.sla_breached === 1,
       history: history.map(h => ({ date: h.created_at, action: h.action, actor: h.actor, details: h.details }))
     });
   } catch (err) {
@@ -132,9 +167,13 @@ router.get('/complaints/:id', async (req, res) => {
 router.post('/complaints', async (req, res) => {
   try {
     const { title, description, departmentId, location, imageUrl } = req.body;
+    const latitude = parseCoordinate(req.body.latitude);
+    const longitude = parseCoordinate(req.body.longitude);
 
     const requiredError = validateRequired({ title, departmentId, description, location });
     if (requiredError) return res.status(400).json({ error: requiredError });
+    const coordinateError = validateCoordinates(latitude, longitude);
+    if (coordinateError) return res.status(400).json({ error: coordinateError });
 
     const [departments] = await pool.query(
       "SELECT id FROM departments WHERE id = ? AND status = 'Active'",
@@ -152,9 +191,9 @@ router.post('/complaints', async (req, res) => {
       await connection.beginTransaction();
 
       await connection.query(
-        `INSERT INTO complaints (id, title, description, department_id, user_id, location, image_url, priority, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), NOW())`,
-        [id, title.trim(), description.trim(), departmentId, req.user.id, location.trim(), imageUrl || null]
+        `INSERT INTO complaints (id, title, description, department_id, user_id, location, latitude, longitude, image_url, priority, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), NOW())`,
+        [id, title.trim(), description.trim(), departmentId, req.user.id, location.trim(), latitude, longitude, imageUrl || null]
       );
 
       await connection.query(
@@ -172,6 +211,7 @@ router.post('/complaints', async (req, res) => {
 
     res.status(201).json({
       id, title: title.trim(), departmentId, userId: req.user.id, description: description.trim(), location: location.trim(), imageUrl,
+      latitude, longitude,
       status: 'Submitted', priority: 'Medium', assignedOfficerId: null,
       currentHierarchyLevelId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       history: [{ date: new Date().toISOString(), action: 'Complaint Submitted', actor: req.user.name, details: 'Submitted via Citizen Portal' }]
@@ -184,6 +224,8 @@ router.post('/complaints', async (req, res) => {
 
 router.put('/complaints/:id/withdraw', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const { reason } = req.body;
     const requiredError = validateRequired({ reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
@@ -216,7 +258,8 @@ router.get('/notifications', async (req, res) => {
 
 router.put('/notifications/:id/read', async (req, res) => {
   try {
-    await markNotificationRead(pool, 'user', req.user.id, req.params.id);
+    const marked = await markNotificationRead(pool, 'user', req.user.id, req.params.id);
+    if (!marked) return res.status(404).json({ error: 'Notification not found' });
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update notification' });

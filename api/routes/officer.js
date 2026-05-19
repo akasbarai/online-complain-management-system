@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { deadlineSql, refreshSlaBreaches } = require('../utils/sla');
 const { validateEnum, validatePassword, validateRequired } = require('../utils/validation');
 const router = express.Router();
 
@@ -12,6 +13,8 @@ router.use(authMiddleware('officer'));
 
 router.get('/attention', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [[assigned]] = await pool.query(
       "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id = ? AND status = 'Assigned' AND is_trashed = FALSE",
       [req.user.id]
@@ -51,6 +54,8 @@ router.get('/attention', async (req, res) => {
 
 router.get('/complaints', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [complaints] = await pool.query(`
       SELECT c.*, u.name as user_name, d.name as department_name
       FROM complaints c
@@ -67,6 +72,8 @@ router.get('/complaints', async (req, res) => {
       userId: c.user_id,
       description: c.description,
       location: c.location,
+      latitude: c.latitude === null ? null : Number(c.latitude),
+      longitude: c.longitude === null ? null : Number(c.longitude),
       imageUrl: c.image_url,
       status: c.status,
       priority: c.priority,
@@ -87,6 +94,8 @@ router.get('/complaints', async (req, res) => {
 
 router.get('/complaints/:id', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [complaints] = await pool.query(`
       SELECT c.*, u.name as user_name, u.email as user_email, d.name as department_name,
         hl.name as hierarchy_name, o.name as officer_name
@@ -113,6 +122,8 @@ router.get('/complaints/:id', async (req, res) => {
       userId: c.user_id,
       description: c.description,
       location: c.location,
+      latitude: c.latitude === null ? null : Number(c.latitude),
+      longitude: c.longitude === null ? null : Number(c.longitude),
       imageUrl: c.image_url,
       status: c.status,
       priority: c.priority,
@@ -131,6 +142,8 @@ router.get('/complaints/:id', async (req, res) => {
 
 router.put('/complaints/:id/status', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const { status, remark } = req.body;
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
@@ -142,8 +155,12 @@ router.put('/complaints/:id/status', async (req, res) => {
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     const [result] = await pool.query(
-      'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
-      [status, req.params.id, req.user.id]
+      `UPDATE complaints SET
+        status = ?,
+        sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('In Progress', 'Awaiting Materials') THEN ${deadlineSql()} ELSE sla_deadline END,
+        updated_at = NOW()
+       WHERE id = ? AND assigned_officer_id = ?`,
+      [status, status, req.params.id, req.user.id]
     );
 
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
@@ -170,6 +187,8 @@ router.put('/complaints/:id/status', async (req, res) => {
 
 router.put('/complaints/:id/escalate', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const { reason } = req.body;
     const requiredError = validateRequired({ reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
@@ -217,7 +236,8 @@ router.get('/notifications', async (req, res) => {
 
 router.put('/notifications/:id/read', async (req, res) => {
   try {
-    await markNotificationRead(pool, 'officer', req.user.id, req.params.id);
+    const marked = await markNotificationRead(pool, 'officer', req.user.id, req.params.id);
+    if (!marked) return res.status(404).json({ error: 'Notification not found' });
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update notification' });

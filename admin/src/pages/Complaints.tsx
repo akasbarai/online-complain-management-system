@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Button, Select, Modal, Badge, Input, Textarea, Skeleton, Spinner } from '../components/ui';
 import { ComplaintService, OfficerService, DeptService, UserService, HierarchyService } from '../services/api';
+import { LocationMap } from '../components/LocationMap';
 import { Complaint, ComplaintStatus, Status, Priority } from '../types';
 import { AlertTriangle, Clock, ArrowRight, CheckSquare, Eye, Search, UserPlus, MapPin, Image as ImageIcon, FileText, Zap, Flag } from 'lucide-react';
 
@@ -425,6 +426,12 @@ export const Complaints = () => {
                    <span className="font-medium text-slate-800">{officers.find(o => o.id === selectedComplaint.assignedOfficerId)?.name || 'Unassigned'}</span>
                 </div>
              </div>
+
+             <LocationMap
+               location={selectedComplaint.location}
+               latitude={selectedComplaint.latitude}
+               longitude={selectedComplaint.longitude}
+             />
 
              <div>
                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">

@@ -6,7 +6,9 @@ const { createId } = require('../utils/id');
 const { createNotification } = require('../utils/notifications');
 const {
   isValidEmail,
+  isValidMobile,
   normalizeEmail,
+  normalizeMobile,
   validatePassword,
   validateRequired
 } = require('../utils/validation');
@@ -40,9 +42,11 @@ router.post('/user/register', async (req, res) => {
   try {
     const { name, email, mobile, address, password, profilePicture, idCardUrl } = req.body;
     const normalizedEmail = normalizeEmail(email);
-    const requiredError = validateRequired({ name, email: normalizedEmail, password });
+    const normalizedMobile = normalizeMobile(mobile);
+    const requiredError = validateRequired({ name, email: normalizedEmail, mobile: normalizedMobile, address, password });
     if (requiredError) return res.status(400).json({ error: requiredError });
     if (!isValidEmail(normalizedEmail)) return res.status(400).json({ error: 'A valid email is required' });
+    if (!isValidMobile(normalizedMobile)) return res.status(400).json({ error: 'Phone number must start with 98 and be exactly 10 digits' });
 
     const passwordError = validatePassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
@@ -58,12 +62,12 @@ router.post('/user/register', async (req, res) => {
     await pool.query(
       `INSERT INTO users (id, name, email, mobile, address, password_hash, status, profile_picture, id_card_url, registered_date)
        VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?, CURDATE())`,
-      [id, name.trim(), normalizedEmail, mobile || null, address || null, passwordHash, profilePicture || null, idCardUrl || null]
+      [id, name.trim(), normalizedEmail, normalizedMobile, address.trim(), passwordHash, profilePicture || null, idCardUrl || null]
     );
 
     res.status(201).json({
       message: 'Registration successful. Awaiting admin verification.',
-      user: { id, name: name.trim(), email: normalizedEmail, mobile, address, status: 'Pending', registeredDate: new Date().toISOString().split('T')[0] }
+      user: { id, name: name.trim(), email: normalizedEmail, mobile: normalizedMobile, address: address.trim(), status: 'Pending', registeredDate: new Date().toISOString().split('T')[0] }
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -128,6 +132,7 @@ router.post('/officer/login', async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
     const requiredError = validateRequired({ email: normalizedEmail, password });
     if (requiredError) return res.status(400).json({ error: requiredError });
+    if (!isValidEmail(normalizedEmail)) return res.status(400).json({ error: 'A valid email is required' });
 
     const [officers] = await pool.query('SELECT * FROM officers WHERE email = ?', [normalizedEmail]);
     if (officers.length === 0) {

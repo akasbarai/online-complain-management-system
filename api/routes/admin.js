@@ -6,6 +6,7 @@ const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
 const { createNotification } = require('../utils/notifications');
+const { deadlineSql, refreshSlaBreaches } = require('../utils/sla');
 const {
   isValidEmail,
   normalizeEmail,
@@ -24,6 +25,8 @@ router.use(authMiddleware('admin'));
 
 router.get('/attention', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [[pendingUsers]] = await pool.query("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'");
     const [[passwordResetRequests]] = await pool.query('SELECT COUNT(*) as count FROM users WHERE password_reset_requested = TRUE');
     const [[unassignedComplaints]] = await pool.query(
@@ -435,6 +438,8 @@ router.delete('/users/:id', async (req, res) => {
 // Complaints
 router.get('/complaints', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [complaints] = await pool.query(`
       SELECT c.*, u.name as user_name, o.name as officer_name, hl.name as hierarchy_name
       FROM complaints c
@@ -462,6 +467,8 @@ router.get('/complaints', async (req, res) => {
       userId: c.user_id,
       description: c.description,
       location: c.location,
+      latitude: c.latitude === null ? null : Number(c.latitude),
+      longitude: c.longitude === null ? null : Number(c.longitude),
       imageUrl: c.image_url,
       status: c.status,
       priority: c.priority,
@@ -487,6 +494,8 @@ router.get('/complaints', async (req, res) => {
 
 router.put('/complaints/:id/reassign', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const { officerId, reason } = req.body;
     const requiredError = validateRequired({ officerId, reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
@@ -505,7 +514,7 @@ router.put('/complaints/:id/reassign', async (req, res) => {
         assigned_officer_id = ?, 
         current_hierarchy_level_id = ?,
         status = CASE WHEN status = 'Submitted' THEN 'Assigned' ELSE status END,
-        sla_deadline = CASE WHEN sla_deadline IS NULL THEN DATE_ADD(NOW(), INTERVAL 72 HOUR) ELSE sla_deadline END,
+        sla_deadline = CASE WHEN sla_deadline IS NULL THEN ${deadlineSql()} ELSE sla_deadline END,
         updated_at = NOW()
        WHERE id = ?`,
       [officerId, officers[0].hierarchy_level_id, req.params.id]
@@ -542,6 +551,8 @@ router.put('/complaints/:id/reassign', async (req, res) => {
 
 router.put('/complaints/:id/status', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const { status, notes } = req.body;
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
@@ -555,7 +566,7 @@ router.put('/complaints/:id/status', async (req, res) => {
     const [result] = await pool.query(
       `UPDATE complaints SET 
         status = ?,
-        sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('Assigned', 'In Progress') THEN DATE_ADD(NOW(), INTERVAL 72 HOUR) ELSE sla_deadline END,
+        sla_deadline = CASE WHEN sla_deadline IS NULL AND ? IN ('Assigned', 'In Progress', 'Awaiting Materials') THEN ${deadlineSql()} ELSE sla_deadline END,
         updated_at = NOW()
        WHERE id = ?`,
       [status, status, req.params.id]
@@ -600,6 +611,8 @@ router.put('/complaints/:id/priority', async (req, res) => {
 
 router.get('/analytics', async (req, res) => {
   try {
+    await refreshSlaBreaches(pool);
+
     const [byDept] = await pool.query(
       `SELECT d.name, COUNT(c.id) as count FROM departments d LEFT JOIN complaints c ON c.department_id = d.id GROUP BY d.id, d.name`
     );
@@ -617,7 +630,43 @@ router.get('/analytics', async (req, res) => {
       FROM complaints WHERE is_trashed = FALSE
     `);
 
-    res.json({ byDept, byStatus, totals: totals[0] });
+    const [performanceRows] = await pool.query(`
+      SELECT
+        COALESCE(hl.id, 'unassigned') as id,
+        COALESCE(hl.name, 'Unassigned') as name,
+        COUNT(c.id) as total,
+        SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
+        SUM(CASE WHEN c.sla_breached = TRUE THEN 1 ELSE 0 END) as breaches,
+        AVG(CASE
+          WHEN c.status IN ('Resolved', 'Closed')
+          THEN TIMESTAMPDIFF(HOUR, c.created_at, c.updated_at) / 24
+          ELSE NULL
+        END) as avg_resolution_days
+      FROM complaints c
+      LEFT JOIN hierarchy_levels hl ON c.current_hierarchy_level_id = hl.id
+      WHERE c.is_trashed = FALSE
+      GROUP BY COALESCE(hl.id, 'unassigned'), COALESCE(hl.name, 'Unassigned')
+      ORDER BY name
+    `);
+
+    const performance = performanceRows.map((row) => {
+      const avgDays = row.avg_resolution_days == null
+        ? 'N/A'
+        : `${Number(row.avg_resolution_days).toFixed(1)} days`;
+      const total = Number(row.total || 0);
+      const breaches = Number(row.breaches || 0);
+      const efficiency = total === 0 ? 'N/A' : `${Math.max(0, Math.round(((total - breaches) / total) * 100))}%`;
+
+      return {
+        id: row.id,
+        name: row.name,
+        avgDays,
+        breaches,
+        efficiency
+      };
+    });
+
+    res.json({ byDept, byStatus, totals: totals[0], performance });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }

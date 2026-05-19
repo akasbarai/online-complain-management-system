@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, ChevronRight, ClipboardList, Clock, Hourglass, MapPin, Plus, Search } from 'lucide-react';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { ComplaintService } from '../services/api';
+import { SlaCountdown } from '../components/SlaCountdown';
 import { Complaint, ComplaintStatus } from '../types';
 
 const statusTone = (status: ComplaintStatus): 'success' | 'secondary' | 'warning' | 'danger' | 'info' => {
@@ -101,7 +102,8 @@ export const Dashboard = () => {
               <h3 className="mt-1 font-semibold text-slate-950">{latestComplaint.title}</h3>
               <p className="mt-1 text-sm text-slate-600">{new Date(latestComplaint.updatedAt).toLocaleString()}</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <SlaCountdown complaint={latestComplaint} />
               <Badge variant={statusTone(latestComplaint.status)}>{latestComplaint.status}</Badge>
               <Link to={`/complaints/${latestComplaint.id}`}>
                 <Button variant="outline" size="sm">View</Button>
@@ -153,6 +155,7 @@ export const Dashboard = () => {
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                       <span className="flex items-center gap-1"><Clock size={12}/> {new Date(c.createdAt).toLocaleDateString()}</span>
                       {c.location && <span className="flex items-center gap-1"><MapPin size={12}/> {c.location}</span>}
+                      <SlaCountdown complaint={c} />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:justify-end">

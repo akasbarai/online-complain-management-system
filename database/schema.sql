@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS complaints (
     department_id VARCHAR(50) NOT NULL,
     user_id VARCHAR(50) NOT NULL,
     location VARCHAR(255),
+    latitude DECIMAL(10, 8) DEFAULT NULL,
+    longitude DECIMAL(11, 8) DEFAULT NULL,
     image_url LONGTEXT,
     status ENUM('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected') DEFAULT 'Submitted',
     priority ENUM('Unassigned', 'Low', 'Medium', 'High', 'Critical') DEFAULT 'Medium',
@@ -126,6 +128,7 @@ CREATE INDEX idx_complaints_user_id ON complaints(user_id);
 CREATE INDEX idx_complaints_officer_id ON complaints(assigned_officer_id);
 CREATE INDEX idx_complaints_department ON complaints(department_id);
 CREATE INDEX idx_complaints_sla ON complaints(sla_deadline);
+CREATE INDEX idx_complaints_coordinates ON complaints(latitude, longitude);
 CREATE INDEX idx_notifications_recipient ON notifications(recipient_type, recipient_id);
 CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id);
 
@@ -133,3 +136,5 @@ CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_ty
 -- ALTER TABLE users MODIFY COLUMN profile_picture LONGTEXT;
 -- ALTER TABLE users MODIFY COLUMN id_card_url LONGTEXT;
 -- ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT;
+-- ALTER TABLE complaints ADD COLUMN latitude DECIMAL(10, 8) DEFAULT NULL AFTER location;
+-- ALTER TABLE complaints ADD COLUMN longitude DECIMAL(11, 8) DEFAULT NULL AFTER latitude;

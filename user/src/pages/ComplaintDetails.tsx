@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CalendarClock, Clock, FileText, MapPin, User, XCircle } from 'lucide-react';
 import { Badge, Button, Card, Spinner, Textarea } from '../components/ui';
 import { ComplaintService } from '../services/api';
+import { SlaCountdown } from '../components/SlaCountdown';
+import { LocationMap } from '../components/LocationMap';
 import { Complaint, ComplaintStatus } from '../types';
 
 const statusTone = (status: ComplaintStatus): 'success' | 'secondary' | 'warning' | 'danger' | 'info' => {
@@ -127,6 +129,8 @@ export const ComplaintDetails = () => {
             </div>
           </Card>
 
+          <SlaCountdown complaint={complaint} variant="detail" />
+
           <Card className="p-6">
             <div className="space-y-6">
               <div>
@@ -152,6 +156,12 @@ export const ComplaintDetails = () => {
                   <p className="text-sm font-medium text-slate-900">{new Date(complaint.updatedAt).toLocaleString()}</p>
                 </div>
               </div>
+
+              <LocationMap
+                location={complaint.location}
+                latitude={complaint.latitude}
+                longitude={complaint.longitude}
+              />
 
               {complaint.imageUrl && (
                 <div className="border-t border-slate-100 pt-5">
