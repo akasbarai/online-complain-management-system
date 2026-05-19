@@ -52,21 +52,38 @@ const ensureMigrations = async () => {
   }
 };
 
-const allowedOrigins = [
+const allowedOrigins = new Set([
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  'http://127.0.0.1:3000',
+  'http://[::1]:5173',
+  'http://[::1]:5174',
+  'http://[::1]:5175',
+  'http://[::1]:3000',
+  'http://localhost:4173',
+  'http://localhost:4174',
+  'http://localhost:4175',
+  'http://127.0.0.1:4173',
+  'http://127.0.0.1:4174',
+  'http://127.0.0.1:4175',
+  'http://[::1]:4173',
+  'http://[::1]:4174',
+  'http://[::1]:4175',
   'https://ocms.akashbarai.com.np',
   ...(process.env.CORS_ORIGINS || '')
     .split(',')
     .map(origin => origin.trim())
     .filter(Boolean)
-];
+]);
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.has(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
@@ -91,6 +108,10 @@ app.use('/api/user', userRoutes);
 app.use('/api/public', publicRoutes);
 
 app.use((err, req, res, next) => {
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'Origin not allowed by CORS' });
+  }
+
   if (err.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Uploaded evidence is too large. Please choose a smaller file.' });
   }

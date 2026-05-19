@@ -1,6 +1,7 @@
 import type { Department, HierarchyLevel, Officer, User, Complaint, Notification } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:4000/api').replace(/\/$/, '');
+const NETWORK_ERROR = 'Cannot reach the OCMS server. Please make sure the API is running and try again.';
 
 const getHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('token');
@@ -10,7 +11,14 @@ const getHeaders = (): Record<string, string> => {
 };
 
 const api = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
-  const res = await fetch(`${API_BASE}${url}`, { headers: getHeaders(), ...options });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${url}`, { headers: getHeaders(), ...options });
+  } catch (err) {
+    console.error(`API request failed: ${API_BASE}${url}`, err);
+    throw new Error(NETWORK_ERROR);
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Request failed' }));
     if (res.status === 401 || res.status === 403) {
@@ -96,6 +104,7 @@ export const UserService = {
 
 export const NotificationService = {
   getAll: () => api<Notification[]>('/admin/notifications'),
+  markAsRead: (id: string) => api(`/admin/notifications/${id}/read`, { method: 'PUT' }),
   send: (data: Partial<Notification>) => api<Notification>('/admin/notifications', { method: 'POST', body: JSON.stringify(data) }),
   clearAll: () => api('/admin/notifications', { method: 'DELETE' })
 };

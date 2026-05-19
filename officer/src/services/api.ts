@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:4000/api').replace(/\/$/, '');
+const NETWORK_ERROR = 'Cannot reach the OCMS server. Please make sure the API is running and try again.';
 
 const getHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('token');
@@ -8,7 +9,14 @@ const getHeaders = (): Record<string, string> => {
 };
 
 const api = async (url, options: RequestInit = {}) => {
-  const res = await fetch(`${API_BASE}${url}`, { headers: getHeaders(), ...options });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${url}`, { headers: getHeaders(), ...options });
+  } catch (err) {
+    console.error(`API request failed: ${API_BASE}${url}`, err);
+    throw new Error(NETWORK_ERROR);
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Request failed' }));
     throw new Error(error.error || 'Request failed');

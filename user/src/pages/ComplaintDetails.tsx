@@ -80,8 +80,9 @@ export const ComplaintDetails = () => {
         <ArrowLeft size={16} /> Back to Dashboard
       </Button>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+      <div className="overflow-hidden rounded-lg border border-primary-100 bg-white shadow-sm shadow-primary-100/70">
+        <div className="flex flex-col gap-4 p-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="page-title">{complaint.title}</h1>
             <Badge variant={statusTone(complaint.status)}>{complaint.status}</Badge>
@@ -90,12 +91,23 @@ export const ComplaintDetails = () => {
             <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">#{complaint.id}</span>
             <span className="flex items-center gap-1"><CalendarClock size={14} /> {new Date(complaint.createdAt).toLocaleDateString()}</span>
           </div>
+          </div>
+          {canWithdraw && (
+            <Button variant={isWithdrawMode ? 'outline' : 'danger'} size="sm" onClick={() => setIsWithdrawMode(!isWithdrawMode)} className="gap-2">
+              <XCircle size={16} /> {isWithdrawMode ? 'Cancel Withdrawal' : 'Withdraw'}
+            </Button>
+          )}
         </div>
-        {canWithdraw && (
-          <Button variant={isWithdrawMode ? 'outline' : 'danger'} size="sm" onClick={() => setIsWithdrawMode(!isWithdrawMode)} className="gap-2">
-            <XCircle size={16} /> {isWithdrawMode ? 'Cancel Withdrawal' : 'Withdraw'}
-          </Button>
-        )}
+        <div className="border-t border-primary-100 bg-primary-50/60 px-6 py-4">
+          <div className="h-2 overflow-hidden rounded-full bg-white">
+            <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: statusProgress(complaint.status) }} />
+          </div>
+          <div className="mt-3 grid grid-cols-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <span>Submitted</span>
+            <span className="text-center">Assigned</span>
+            <span className="text-right">Resolved</span>
+          </div>
+        </div>
       </div>
 
       {isWithdrawMode && (
@@ -114,21 +126,6 @@ export const ComplaintDetails = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card className="p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="font-semibold text-slate-950">Progress</h3>
-              <Badge variant={statusTone(complaint.status)}>{complaint.status}</Badge>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: statusProgress(complaint.status) }} />
-            </div>
-            <div className="mt-3 grid grid-cols-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <span>Submitted</span>
-              <span className="text-center">Assigned</span>
-              <span className="text-right">Resolved</span>
-            </div>
-          </Card>
-
           <SlaCountdown complaint={complaint} variant="detail" />
 
           <Card className="p-6">

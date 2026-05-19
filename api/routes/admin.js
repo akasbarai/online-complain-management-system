@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
-const { createNotification } = require('../utils/notifications');
+const { createNotification, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { deadlineSql, refreshSlaBreaches } = require('../utils/sla');
 const {
   isValidEmail,
@@ -53,12 +53,10 @@ router.get('/attention', async (req, res) => {
          OR NOT EXISTS (SELECT 1 FROM officers o WHERE o.department_id = d.id AND o.status = 'Active')
        )`
     );
-    const [[notifications]] = await pool.query(
-      "SELECT COUNT(*) as count FROM notifications WHERE recipient_type IS NULL AND target IN ('All', 'Officers')"
-    );
+    const notifications = await getUnreadNotificationCount(pool, 'admin', req.user.id);
 
     res.json({
-      notifications: notifications.count,
+      notifications,
       users: pendingUsers.count + passwordResetRequests.count,
       pendingUsers: pendingUsers.count,
       passwordResetRequests: passwordResetRequests.count,
@@ -675,7 +673,26 @@ router.get('/analytics', async (req, res) => {
 // Notifications
 router.get('/notifications', async (req, res) => {
   try {
-    const [notifications] = await pool.query('SELECT * FROM notifications ORDER BY created_at DESC');
+    const [[adminAccount]] = await pool.query('SELECT created_at FROM officers WHERE id = ?', [req.user.id]);
+    const adminCreatedAt = adminAccount?.created_at || new Date(0);
+    const [notifications] = await pool.query(
+      `SELECT n.*, nr.read_at,
+        CASE
+          WHEN (
+            (n.recipient_type IS NULL AND n.target IN ('All', 'Officers') AND n.created_at >= ?)
+            OR (n.recipient_type = 'Officer' AND n.recipient_id = ?)
+          ) THEN 1
+          ELSE 0
+        END as is_visible_to_admin
+       FROM notifications n
+       LEFT JOIN notification_reads nr
+         ON nr.notification_id = n.id
+         AND nr.recipient_type = 'Officer'
+         AND nr.recipient_id = ?
+       ORDER BY n.created_at DESC`,
+      [adminCreatedAt, req.user.id, req.user.id]
+    );
+
     res.json(notifications.map(n => ({
       id: n.id,
       title: n.title,
@@ -685,10 +702,20 @@ router.get('/notifications', async (req, res) => {
       recipientId: n.recipient_id,
       priority: n.priority,
       date: n.created_at,
-      read: n.is_read === 1
+      read: !n.is_visible_to_admin || Boolean(n.read_at)
     })));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+router.put('/notifications/:id/read', async (req, res) => {
+  try {
+    const marked = await markNotificationRead(pool, 'admin', req.user.id, req.params.id);
+    if (!marked) return res.status(404).json({ error: 'Notification not found' });
+    res.json({ message: 'Notification marked as read' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update notification' });
   }
 });
 

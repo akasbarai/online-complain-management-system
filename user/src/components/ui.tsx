@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={cn("rounded-lg border border-slate-200/80 bg-white shadow-sm shadow-slate-200/60", className)}>{children}</div>
+  <div className={cn("rounded-lg border border-slate-200/80 bg-white shadow-sm shadow-slate-200/70", className)}>{children}</div>
 );
 
 export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost'; size?: 'sm' | 'md' | 'lg' }>(
@@ -25,7 +25,7 @@ export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttrib
       md: 'h-10 px-4 text-sm',
       lg: 'h-12 px-5 text-base',
     };
-    return <button ref={ref} className={cn("inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50", variants[variant], sizes[size], className)} {...props} />;
+    return <button ref={ref} className={cn("inline-flex items-center justify-center rounded-md font-medium transition-all hover:-translate-y-px focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 active:translate-y-0 disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50", variants[variant], sizes[size], className)} {...props} />;
   }
 );
 

@@ -123,18 +123,18 @@ export const Register = () => {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#eff6ff_0%,#f8fafc_55%,#ecfdf5_100%)] p-4">
         <Card className="w-full max-w-md p-8 text-center">
-           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-primary-700">
              <Clock size={32} />
            </div>
            <h2 className="text-2xl font-bold text-slate-900 mb-2">Registration Submitted</h2>
            <p className="text-slate-600 mb-6">
              Your account request is currently <strong>Pending Verification</strong> by an admin.
            </p>
-           <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 mb-6 text-left flex items-start gap-3">
-              <Clock className="text-yellow-600 shrink-0 mt-0.5" size={20} />
-              <div className="text-sm text-yellow-800">
+           <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-100 bg-amber-50 p-4 text-left">
+              <Clock className="mt-0.5 shrink-0 text-amber-600" size={20} />
+              <div className="text-sm text-amber-800">
                 <p className="font-semibold mb-1">What happens next?</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>Our administrative team will review your ID documentation.</li>
@@ -151,7 +151,7 @@ export const Register = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff7f7_0,#f8fafc_45%,#eef2f7_100%)] p-4">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#eff6ff_0%,#f8fafc_55%,#ecfdf5_100%)] p-4">
       <div className="mx-auto flex min-h-screen max-w-5xl items-center justify-center">
       <Card className="w-full max-w-2xl p-7 sm:p-8">
         <div className="text-center mb-8">

@@ -9,11 +9,25 @@ export const Notifications = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const loadNotifications = async () => {
+    setLoading(true);
+    try {
+      const data = await NotificationService.getAll();
+      const unreadNotifications = data.filter((notification: any) => !notification.read);
+      if (unreadNotifications.length > 0) {
+        await Promise.allSettled(unreadNotifications.map((notification: any) => NotificationService.markAsRead(notification.id)));
+      }
+      setHistory(data.map((notification: any) => ({ ...notification, read: true })));
+      window.dispatchEvent(new Event('ocms:notifications-read'));
+    } catch {
+      setHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    NotificationService.getAll()
-      .then(data => setHistory(data))
-      .catch(() => setHistory([]))
-      .finally(() => setLoading(false));
+    loadNotifications();
   }, []);
   
   const [formData, setFormData] = useState({
@@ -25,8 +39,7 @@ export const Notifications = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await NotificationService.send(formData);
-    const updated = await NotificationService.getAll();
-    setHistory(updated);
+    await loadNotifications();
     setFormData({ title: '', message: '', target: 'All' });
     alert('Notification sent successfully.');
   };

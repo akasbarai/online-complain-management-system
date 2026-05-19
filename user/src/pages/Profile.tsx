@@ -73,22 +73,27 @@ export const Profile = () => {
 
   return (
     <div className="page-shell">
-      <div>
-        <h1 className="page-title">My Profile</h1>
-        <p className="page-subtitle">Manage contact information and verification details.</p>
+      <div className="overflow-hidden rounded-lg border border-primary-100 bg-white shadow-sm shadow-primary-100/70">
+        <div className="p-6">
+          <p className="page-kicker">Account</p>
+          <h1 className="mt-2 page-title">My Profile</h1>
+          <p className="page-subtitle">Manage contact information and verification details.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="flex flex-col items-center p-6 text-center">
+        <Card className="flex flex-col items-center overflow-hidden text-center">
+          <div className="h-20 w-full bg-gradient-to-r from-primary-600 to-civic-600" />
+          <div className="-mt-12 flex flex-col items-center px-6 pb-6">
            <div className="relative mb-4">
              {profilePicturePreview || user.profilePicture ? (
                <img 
                  src={profilePicturePreview || user.profilePicture} 
                  alt={user.name} 
-                className="h-24 w-24 rounded-full border-2 border-primary-100 object-cover shadow-sm"
+                className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-md"
                />
              ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary-100 text-3xl font-bold text-primary-600">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-primary-100 text-3xl font-bold text-primary-600 shadow-md">
                  {user.name.charAt(0)}
                </div>
              )}
@@ -114,6 +119,7 @@ export const Profile = () => {
                  <MapPin size={16} className="mr-3 text-slate-400" /> {user.address || 'Not set'}
               </div>
            </div>
+          </div>
         </Card>
 
         <div className="md:col-span-2">
@@ -182,7 +188,7 @@ export const Profile = () => {
                <h3 className="mb-4 flex items-center text-lg font-bold text-slate-950">
                  <Shield size={18} className="mr-2 text-slate-400" /> Security
               </h3>
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded border border-slate-200">
+              <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 p-3">
                  <div>
                     <p className="font-medium text-sm text-slate-900">Password</p>
                     <p className="text-xs text-slate-500">Last changed upon registration</p>

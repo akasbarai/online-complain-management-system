@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, ChevronRight, ClipboardList, Clock, Hourglass, MapPin, Plus, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronRight, ClipboardList, Clock, Hourglass, MapPin, Plus, Search, Sparkles } from 'lucide-react';
 import { Badge, Button, Card, Spinner } from '../components/ui';
-import { ComplaintService } from '../services/api';
+import { AuthService, ComplaintService } from '../services/api';
 import { SlaCountdown } from '../components/SlaCountdown';
 import { Complaint, ComplaintStatus } from '../types';
 
@@ -20,6 +20,8 @@ export const Dashboard = () => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
+  const user = AuthService.getCurrentUser();
 
   useEffect(() => {
     ComplaintService.getMyComplaints()
@@ -40,26 +42,49 @@ export const Dashboard = () => {
   const resolvedCount = complaints.filter(c => c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED).length;
   const latestComplaint = complaints[0];
   const filteredComplaints = complaints.filter(c => {
+    if (filter === 'open' && !isOpenComplaint(c.status)) return false;
+    if (filter === 'resolved' && isOpenComplaint(c.status)) return false;
     const text = `${c.title} ${c.description} ${c.location || ''} ${c.status}`.toLowerCase();
     return text.includes(query.toLowerCase());
   });
 
   return (
     <div className="page-shell">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="page-title">My Dashboard</h2>
-          <p className="page-subtitle">Track submitted issues and recent updates.</p>
+      <div className="overflow-hidden rounded-lg border border-primary-100 bg-white shadow-sm shadow-primary-100/70">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <p className="page-kicker">Citizen dashboard</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Your complaint activity is organized here with status, timeline, location, and SLA updates.
+            </p>
+          </div>
+          <Link to="/lodge">
+            <Button className="w-full gap-2 sm:w-auto" size="lg">
+              <Plus size={18} /> Lodge Complaint
+            </Button>
+          </Link>
         </div>
-        <Link to="/lodge">
-          <Button className="w-full gap-2 sm:w-auto">
-            <Plus size={18} /> Lodge Complaint
-          </Button>
-        </Link>
+        <div className="grid border-t border-primary-100 bg-primary-50/60 px-6 py-4 text-sm text-slate-600 sm:grid-cols-3">
+          <div className="flex items-center gap-2 py-1">
+            <Sparkles size={16} className="text-primary-700" />
+            <span className="font-medium text-slate-800">{openCount}</span> active cases
+          </div>
+          <div className="flex items-center gap-2 py-1">
+            <CheckCircle2 size={16} className="text-civic-600" />
+            <span className="font-medium text-slate-800">{resolvedCount}</span> resolved cases
+          </div>
+          <div className="flex items-center gap-2 py-1">
+            <Clock size={16} className="text-amber-600" />
+            <span className="font-medium text-slate-800">{complaints.length ? new Date(complaints[0].updatedAt).toLocaleDateString() : '-'}</span> latest update
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-5">
+        <Card className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">Total complaints</p>
@@ -70,7 +95,7 @@ export const Dashboard = () => {
             </div>
           </div>
         </Card>
-        <Card className="p-5">
+        <Card className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">In progress</p>
@@ -81,7 +106,7 @@ export const Dashboard = () => {
             </div>
           </div>
         </Card>
-        <Card className="p-5">
+        <Card className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">Resolved</p>
@@ -95,7 +120,7 @@ export const Dashboard = () => {
       </div>
 
       {latestComplaint && (
-        <Card className="overflow-hidden border-primary-100 bg-gradient-to-r from-primary-50 to-white">
+        <Card className="overflow-hidden border-primary-100 bg-gradient-to-r from-primary-50 via-white to-white">
           <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Latest complaint</p>
@@ -114,16 +139,38 @@ export const Dashboard = () => {
       )}
 
       <Card className="overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-semibold text-slate-950">Complaint history</h3>
-          <div className="relative sm:w-72">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search complaints"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-            />
+        <div className="border-b border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <h3 className="font-semibold text-slate-950">Complaint history</h3>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex rounded-md border border-slate-200 bg-slate-50 p-1">
+                {[
+                  ['all', 'All'],
+                  ['open', 'Open'],
+                  ['resolved', 'Resolved'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setFilter(value as typeof filter)}
+                    className={`rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      filter === value ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative sm:w-72">
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search complaints"
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -145,7 +192,7 @@ export const Dashboard = () => {
         <div className="divide-y divide-slate-100">
           {filteredComplaints.map(c => (
             <Link to={`/complaints/${c.id}`} key={c.id} className="group block">
-              <div className="relative p-5 transition-colors hover:bg-slate-50">
+              <div className="relative p-5 transition-colors hover:bg-primary-50/35">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

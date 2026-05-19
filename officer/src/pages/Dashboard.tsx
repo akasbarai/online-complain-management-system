@@ -16,9 +16,14 @@ export const Dashboard = () => {
     Promise.all([
       ComplaintService.getMyComplaints(),
       NotificationService.getRecent()
-    ]).then(([complaints, notifications]) => {
+    ]).then(async ([complaints, notifications]) => {
       setComplaints(complaints);
       setNotifications(notifications);
+      const unreadNotifications = notifications.filter((notification: any) => !notification.read);
+      if (unreadNotifications.length > 0) {
+        await Promise.allSettled(unreadNotifications.map((notification: any) => NotificationService.markAsRead(notification.id)));
+        window.dispatchEvent(new Event('ocms:notifications-read'));
+      }
     }).catch(() => {
       setComplaints([]);
       setNotifications([]);

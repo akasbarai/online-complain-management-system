@@ -8,10 +8,10 @@ import { compressImage } from '../utils/compressImage';
 
 const StepLabel = ({ number, title }: { number: number; title: string }) => (
   <div className="mb-4 flex items-center gap-3">
-    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-50 text-sm font-bold text-primary-700">
+    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary-50 text-sm font-bold text-primary-700 ring-1 ring-primary-100">
       {number}
     </span>
-    <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h3>
+    <h3 className="section-heading">{title}</h3>
   </div>
 );
 
@@ -90,9 +90,17 @@ export const LodgeComplaint = () => {
 
   return (
     <div className="page-shell">
-      <div>
-        <h2 className="page-title">Lodge a Complaint</h2>
-        <p className="page-subtitle">Submit the issue, location, and optional evidence.</p>
+      <div className="overflow-hidden rounded-lg border border-primary-100 bg-white shadow-sm shadow-primary-100/70">
+        <div className="p-6">
+          <p className="page-kicker">New report</p>
+          <h2 className="mt-2 page-title">Lodge a Complaint</h2>
+          <p className="page-subtitle max-w-2xl">Submit the issue, location, and optional evidence for department review.</p>
+        </div>
+        <div className="grid border-t border-primary-100 bg-primary-50/60 px-6 py-4 text-sm text-slate-600 sm:grid-cols-3">
+          <span className="py-1">1. Basic details</span>
+          <span className="py-1">2. Location and description</span>
+          <span className="py-1">3. Evidence and submit</span>
+        </div>
       </div>
 
       {error && (
@@ -106,7 +114,7 @@ export const LodgeComplaint = () => {
         <div className="lg:col-span-2">
           <Card className="p-6">
             <form onSubmit={handleSubmit} className="space-y-8">
-              <section>
+              <section className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
                 <StepLabel number={1} title="Basic details" />
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
@@ -125,7 +133,7 @@ export const LodgeComplaint = () => {
                 </div>
               </section>
 
-              <section>
+              <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
                 <StepLabel number={2} title="Location and description" />
                 <div className="space-y-4">
                   <LocationPicker
@@ -141,9 +149,9 @@ export const LodgeComplaint = () => {
                 </div>
               </section>
 
-              <section>
+              <section className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
                 <StepLabel number={3} title="Evidence" />
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:bg-slate-100">
+                <div className="rounded-lg border border-dashed border-primary-200 bg-white p-4 transition-colors hover:bg-primary-50/40">
                   <input type="file" id="evidence-upload" className="hidden" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} />
                   <label htmlFor="evidence-upload" className="flex cursor-pointer flex-col items-center justify-center gap-2">
                     {formData.imageUrl ? (
@@ -200,6 +208,9 @@ export const LodgeComplaint = () => {
                   </span>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-md border border-civic-100 bg-civic-50 p-3 text-xs leading-5 text-civic-700">
+              Accurate location and clear evidence help officers route the issue faster.
             </div>
           </Card>
         </aside>

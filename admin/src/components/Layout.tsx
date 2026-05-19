@@ -89,8 +89,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
 
     loadAttention();
+    window.addEventListener('ocms:notifications-read', loadAttention);
     const interval = setInterval(loadAttention, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener('ocms:notifications-read', loadAttention);
+      clearInterval(interval);
+    };
   }, []);
 
   // Poll for notifications

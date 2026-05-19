@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, LogOut, User, Bell, Menu, X, ShieldCheck } from 'lucide-react';
+import { FileText, LayoutDashboard, PlusCircle, LogOut, User, Bell, Menu, X, ShieldCheck } from 'lucide-react';
 import { AttentionService, AuthService, NotificationService } from '../services/api';
 import { Toast } from './ui';
 
 const AttentionBadge = ({ count }: { count?: number }) => {
   if (!count) return null;
   return (
-    <span className="ml-auto min-w-5 rounded-full bg-primary-600 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white">
+    <span className="ml-auto min-w-5 rounded-full bg-primary-600 px-1.5 py-0.5 text-center text-xs font-bold leading-4 text-white shadow-sm shadow-primary-600/20">
       {count > 99 ? '99+' : count}
     </span>
   );
@@ -21,7 +21,7 @@ const NavItem = ({ to, icon: Icon, label, count, onClick }: { to: string, icon: 
     className={({ isActive }) => 
       `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all ${
         isActive 
-          ? 'border border-primary-100 bg-primary-50 text-primary-700 shadow-sm'
+          ? 'border border-primary-100 bg-primary-50 text-primary-700 shadow-sm shadow-primary-100/60'
           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
       }`
     }
@@ -124,7 +124,7 @@ export const Layout = () => {
   const userInitial = user?.name?.charAt(0)?.toUpperCase() || 'C';
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f8fafc_0,#eef2f7_38%,#f8fafc_78%)] font-sans text-slate-950">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef5ff_42%,#f8fafc_100%)] font-sans text-slate-950">
       {toast && (
         <Toast 
           title={toast.title} 
@@ -133,7 +133,7 @@ export const Layout = () => {
         />
       )}
 
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-200/50 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-sm shadow-slate-200/50 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <button
@@ -147,11 +147,18 @@ export const Layout = () => {
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary-600 font-bold text-white shadow-sm shadow-primary-600/20">O</div>
             <div>
               <h1 className="text-lg font-bold tracking-tight text-slate-950">OCMS</h1>
-              <p className="hidden text-xs font-medium text-slate-500 sm:block">Citizen Portal</p>
+              <p className="hidden text-xs font-medium text-slate-500 sm:block">Citizen workspace</p>
             </div>
           </div>
           
           <div className="flex items-center gap-3 sm:gap-5">
+             <button
+               type="button"
+               onClick={() => navigate('/lodge')}
+               className="hidden items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:bg-slate-800 sm:inline-flex"
+             >
+                <PlusCircle size={16} /> New Complaint
+             </button>
              <button
                type="button"
                onClick={() => navigate('/notifications')}
@@ -184,10 +191,14 @@ export const Layout = () => {
       
       <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-6 px-4 py-6 md:grid-cols-12 lg:gap-8 lg:py-8">
          <aside className={`${mobileNavOpen ? 'block' : 'hidden'} md:col-span-3 md:block lg:col-span-2`}>
-            <div className="sticky top-24 rounded-lg border border-slate-200/80 bg-white/85 p-3 shadow-sm shadow-slate-200/60 backdrop-blur">
-              <div className="mb-3 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                <ShieldCheck size={15} className="text-emerald-600" />
-                Active account
+            <div className="sticky top-24 rounded-lg border border-slate-200/80 bg-white/90 p-3 shadow-sm shadow-slate-200/70 backdrop-blur">
+              <div className="mb-3 rounded-md border border-primary-100 bg-primary-50 p-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary-800">
+                  <ShieldCheck size={15} />
+                  Active citizen account
+                </div>
+                <p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-950">{user?.name || 'Citizen'}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{user?.email}</p>
               </div>
               <nav className="space-y-1">
                 <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" count={attention.dashboard} onClick={() => setMobileNavOpen(false)} />
@@ -195,6 +206,13 @@ export const Layout = () => {
                 <NavItem to="/notifications" icon={Bell} label="Notifications" count={attention.notifications} onClick={() => setMobileNavOpen(false)} />
                 <NavItem to="/profile" icon={User} label="My Profile" count={attention.profile} onClick={() => setMobileNavOpen(false)} />
               </nav>
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+                <div className="mb-1 flex items-center gap-2 font-semibold text-slate-700">
+                  <FileText size={14} />
+                  Complaint desk
+                </div>
+                Submit a report with location and evidence, then track status updates here.
+              </div>
               <button
                  onClick={handleLogout}
                  className="mt-3 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"

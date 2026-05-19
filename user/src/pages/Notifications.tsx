@@ -20,7 +20,7 @@ export const Notifications = () => {
       const data = await NotificationService.getAll();
       const unreadNotifications = data.filter((notification: Notification) => !notification.read);
       if (unreadNotifications.length > 0) {
-        await Promise.all(unreadNotifications.map((notification: Notification) => NotificationService.markAsRead(notification.id)));
+        await Promise.allSettled(unreadNotifications.map((notification: Notification) => NotificationService.markAsRead(notification.id)));
       }
       setNotifications(data.map((notification: Notification) => ({ ...notification, read: true })));
       window.dispatchEvent(new Event('ocms:notifications-read'));
@@ -45,14 +45,17 @@ export const Notifications = () => {
 
   return (
     <div className="page-shell">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="page-title">Notifications</h1>
-          <p className="page-subtitle">Updates from OCMS and assigned officers.</p>
+      <div className="overflow-hidden rounded-lg border border-primary-100 bg-white shadow-sm shadow-primary-100/70">
+        <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="page-kicker">Inbox</p>
+            <h1 className="mt-2 page-title">Notifications</h1>
+            <p className="page-subtitle">Updates from OCMS and assigned officers.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchNotifications} className="gap-2">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchNotifications} className="gap-2">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </Button>
       </div>
 
       <Card className="overflow-hidden">
@@ -67,8 +70,8 @@ export const Notifications = () => {
 
         <div className="divide-y divide-slate-100">
           {notifications.map((notif) => (
-            <div key={notif.id} className="flex gap-4 p-5 transition-colors hover:bg-slate-50">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700">
+            <div key={notif.id} className="flex gap-4 p-5 transition-colors hover:bg-primary-50/35">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-700 ring-1 ring-primary-100">
                 <Bell size={20} />
               </div>
               <div className="min-w-0 flex-1">
