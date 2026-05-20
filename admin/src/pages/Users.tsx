@@ -64,24 +64,16 @@ export const Users = () => {
     }
   };
 
-  const handleVerify = async (id: string, email: string) => {
+  const handleVerify = async (id: string) => {
     try {
-      const link = await UserService.verifyUser(id);
+      const result = await UserService.verifyUser(id);
       await refresh();
       refreshAttention();
 
-      if (link) {
-        const subject = "Action Required: Verify your OCMS Account";
-        const body = `Hello,\n\nYour sign-up details have been verified by the Administration.\n\nPlease click the link below to verify your email and activate your account:\n${link}\n\nRegards,\nOCMS Admin Team`;
-
-        setEmailModal({
-          isOpen: true,
-          to: email,
-          subject,
-          body,
-          actionType: 'Verify'
-        });
-      }
+      alert(result.emailSent
+        ? 'User verified and Gmail acknowledgement sent.'
+        : `User verified, but Gmail acknowledgement was not sent. ${result.emailError || 'Check API Gmail settings.'}`
+      );
     } catch (err: any) {
       alert(err.message);
     }
@@ -318,8 +310,8 @@ export const Users = () => {
                     </>
                   ) : (
                     <>
-                      <Button variant="primary" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleVerify(user.id, user.email)}>
-                        <CheckCircle size={14} className="mr-1" /> Verify & Send Link
+                      <Button variant="primary" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleVerify(user.id)}>
+                        <CheckCircle size={14} className="mr-1" /> Verify & Email
                       </Button>
                       <Button variant="danger" size="sm" onClick={() => handleReject(user.id)}>
                         <XCircle size={14} className="mr-1" /> Reject
@@ -471,7 +463,7 @@ export const Users = () => {
                          <Button 
                            variant="success" 
                            onClick={() => {
-                              handleVerify(viewUser.id, viewUser.email);
+                              handleVerify(viewUser.id);
                               setViewUser(null);
                            }}
                          >
@@ -490,8 +482,14 @@ export const Users = () => {
            <div className="bg-green-50 p-4 rounded-lg border border-green-100 text-green-800 text-sm flex items-start gap-2">
               <CheckCircle size={16} className="mt-0.5 shrink-0" />
               <div>
-                <p className="font-semibold">User Approved Successfully</p>
-                <p>The user has been moved to the User Directory. Send the verification email to notify them.</p>
+                <p className="font-semibold">
+                  {emailModal.actionType === 'Reset' ? 'Password Reset Link Created' : 'Email Ready'}
+                </p>
+                <p>
+                  {emailModal.actionType === 'Reset'
+                    ? 'Send this reset link to the user so they can choose a new password.'
+                    : 'Send this message to the user.'}
+                </p>
               </div>
            </div>
            <div className="p-4 bg-slate-50 rounded border border-slate-200 text-sm">

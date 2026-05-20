@@ -47,6 +47,17 @@ DB_PASSWORD=your_mysql_password
 DB_NAME=ocms
 ```
 
+Add mail settings to the same backend service if you want automatic acknowledgement emails when admins verify citizen accounts:
+
+```env
+USER_PORTAL_URL=https://ocms.akashbarai.com.np
+GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_APP_PASSWORD=your_google_app_password
+MAIL_FROM="OCMS Admin <your_gmail_address@gmail.com>"
+```
+
+Use a Google App Password for `GMAIL_APP_PASSWORD`; a normal Gmail password will be rejected by Gmail SMTP. After changing these variables, restart or redeploy the backend.
+
 If Render gives both an internal/private host and a public host, use the internal/private host because your API is also on Render.
 
 Then restart or redeploy the backend.

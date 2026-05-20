@@ -86,11 +86,7 @@ export const UserService = {
   getAll: () => api<User[]>('/admin/users'),
   toggleStatus: (id: string, status: string) => api(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   verifyUser: async (id: string) => {
-    await api(`/admin/users/${id}/verify`, { method: 'PUT' });
-    const baseUrl = window.location.origin.includes('localhost')
-      ? 'http://localhost:5175'
-      : window.location.origin.replace(/\/admin.*$/, '');
-    return `${baseUrl}/#/login`;
+    return api<{ message: string; emailSent: boolean; emailError?: string | null }>(`/admin/users/${id}/verify`, { method: 'PUT' });
   },
   resetPassword: async (id: string) => {
     const data = await api<{ token: string }>(`/admin/users/${id}/password-reset-link`, { method: 'POST' });

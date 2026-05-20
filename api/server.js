@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const pool = require('./db/connection');
 const rateLimit = require('./middleware/rateLimit');
+const { getMailStatus } = require('./utils/email');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -16,6 +17,11 @@ const PORT = process.env.PORT || 4000;
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'replace_with_a_long_random_string') {
   console.error('JWT_SECRET must be set to a strong secret before starting the API.');
   process.exit(1);
+}
+
+const mailStatus = getMailStatus();
+if (!mailStatus.configured) {
+  console.warn(`Account verification emails are disabled: ${mailStatus.message}`);
 }
 
 const ensureMigrations = async () => {

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
+const { sendAccountVerifiedEmail } = require('../utils/email');
 const { createNotification, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { deadlineSql, nowSql, refreshSlaBreaches } = require('../utils/sla');
 const {
@@ -20,6 +21,30 @@ const COMPLAINT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'In Progres
 const PRIORITIES = ['Unassigned', 'Low', 'Medium', 'High', 'Critical'];
 const NOTIFICATION_TARGETS = ['All', 'Users', 'Officers'];
 const NOTIFICATION_PRIORITIES = ['Normal', 'Important', 'Urgent'];
+
+const getUserPortalBaseUrl = (req) => {
+  if (process.env.USER_PORTAL_URL) {
+    return process.env.USER_PORTAL_URL.replace(/\/$/, '');
+  }
+
+  const origin = req.get('origin');
+  if (!origin) return 'http://localhost:5175';
+
+  try {
+    const url = new URL(origin);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1') {
+      url.port = '5175';
+    }
+    url.pathname = '';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return origin.replace(/\/admin.*$/, '').replace(/\/$/, '');
+  }
+};
+
+const getUserLoginUrl = (req) => `${getUserPortalBaseUrl(req)}/#/login`;
 
 router.use(authMiddleware('admin'));
 
@@ -419,7 +444,7 @@ router.put('/users/:id/status', async (req, res) => {
 
 router.put('/users/:id/verify', async (req, res) => {
   try {
-    const [users] = await pool.query('SELECT id, name FROM users WHERE id = ?', [req.params.id]);
+    const [users] = await pool.query('SELECT id, name, email FROM users WHERE id = ?', [req.params.id]);
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
 
     await pool.query('UPDATE users SET status = ? WHERE id = ?', ['Active', req.params.id]);
@@ -430,7 +455,30 @@ router.put('/users/:id/verify', async (req, res) => {
       recipientType: 'User',
       recipientId: req.params.id
     });
-    res.json({ message: 'User verified successfully' });
+
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendAccountVerifiedEmail({
+        to: users[0].email,
+        name: users[0].name,
+        loginUrl: getUserLoginUrl(req)
+      });
+      emailSent = true;
+    } catch (mailErr) {
+      console.error('Account verification email failed:', mailErr.message);
+      emailError = mailErr.code === 'MAIL_NOT_CONFIGURED'
+        ? mailErr.message
+        : 'The user was verified, but the acknowledgement email could not be sent.';
+    }
+
+    res.json({
+      message: emailSent
+        ? 'User verified successfully and acknowledgement email sent.'
+        : 'User verified successfully, but acknowledgement email was not sent.',
+      emailSent,
+      emailError
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to verify user' });
   }

@@ -298,7 +298,7 @@ export const Register = () => {
                              <span className="text-primary-600 font-medium hover:underline">Click to upload</span>
                              <span className="text-slate-500"> or drag and drop</span>
                           </div>
-                          <p className="text-xs text-slate-400">JPG, PNG or PDF (Documents allowed)</p>
+                          <p className="text-xs text-slate-400">JPG, PNG orcc PDF (Documents allowed)</p>
                         </>
                       )}
                    </label>

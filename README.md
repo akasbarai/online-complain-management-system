@@ -155,6 +155,30 @@ You should see these 8 tables:
    > ALTER USER 'root'@'localhost' IDENTIFIED BY 'new_password';
    > ```
 
+### Email Setup for User Verification
+
+When an admin verifies a citizen account, the API sends the acknowledgement email from the server. Add these values to `api/.env`, then restart the API:
+
+```env
+USER_PORTAL_URL=http://localhost:5175
+GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_APP_PASSWORD=your_google_app_password
+MAIL_FROM="OCMS Admin <your_gmail_address@gmail.com>"
+```
+
+For Gmail, create an App Password in your Google account and use that value for `GMAIL_APP_PASSWORD`; your normal Gmail password will not work. On Render or another host, add the same variables to the backend service environment variables and redeploy/restart the backend.
+
+You can also use any SMTP provider instead:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+MAIL_FROM="OCMS Admin <no-reply@example.com>"
+```
+
 ### How the Connection Works
 
 ```
