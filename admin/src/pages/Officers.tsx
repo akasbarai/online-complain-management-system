@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Input, Select, Modal, Badge, Spinner } from '../components/ui';
 import { OfficerService, DeptService, HierarchyService } from '../services/api';
 import { Officer, Department, HierarchyLevel, Status } from '../types';
-import { UserPlus, Filter, Search, Eye, MailCheck, Mail, CheckCircle, Copy, ExternalLink, Trash2, Key } from 'lucide-react';
+import { UserPlus, Filter, Search, Eye, MailCheck, Mail, CheckCircle, Copy, ExternalLink, Trash2 } from 'lucide-react';
 
 export const Officers = () => {
   const [officers, setOfficers] = useState<Officer[]>([]);
@@ -16,8 +16,6 @@ export const Officers = () => {
   
   const [newCredentials, setNewCredentials] = useState<{officer: Officer, password: string} | null>(null);
   
-  const [resetModal, setResetModal] = useState<{ isOpen: boolean; link: string; email: string }>({ isOpen: false, link: '', email: '' });
-
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDeptId, setFilterDeptId] = useState('');
   
@@ -109,30 +107,12 @@ export const Officers = () => {
     }
   };
 
-  const handleResetPassword = async (id: string, email: string) => {
-    try {
-      const link = await OfficerService.resetPassword(id);
-      if (link) {
-        setResetModal({ isOpen: true, link, email });
-      }
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
   const getEmailData = () => {
     if (!newCredentials) return { subject: '', body: '', to: '' };
     const { officer, password } = newCredentials;
     const subject = "Welcome to OCMS - Your Account Details";
     const body = `Hello ${officer.name},\n\nYour account has been successfully created in the OCMS Portal.\n\nHere are your temporary login credentials:\nEmail: ${officer.email}\nPassword: ${password}\n\nPlease login and change your password immediately.\n\nRegards,\nOCMS Admin Team`;
     return { subject, body, to: officer.email };
-  };
-
-  const getResetEmailData = () => {
-    const { link, email } = resetModal;
-    const subject = "Password Reset Request - OCMS";
-    const body = `Hello,\n\nA password reset was requested for your Officer account.\n\nClick the link below to set a new password:\n${link}\n\nIf you did not request this, please contact the administrator immediately.\n\nRegards,\nOCMS Admin Team`;
-    return { subject, body, to: email };
   };
 
   const handleDefaultMail = (data: {to: string, subject: string, body: string}) => {
@@ -264,14 +244,6 @@ export const Officers = () => {
                     <Eye size={14} />
                   </Button>
                   <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleResetPassword(officer.id, officer.email)}
-                    title="Send Password Reset"
-                  >
-                    <Key size={14} />
-                  </Button>
-                  <Button 
                     variant="danger" 
                     size="sm" 
                     onClick={() => handleDelete(officer.id)}
@@ -401,35 +373,6 @@ export const Officers = () => {
           </div>
         )}
       </Modal>
-
-      <Modal isOpen={resetModal.isOpen} onClose={() => setResetModal({...resetModal, isOpen: false})} title="Reset Officer Password">
-        <div className="space-y-4">
-           <div className="p-4 bg-slate-50 rounded border border-slate-200 text-sm">
-             <p className="text-slate-500 mb-1">To:</p>
-             <p className="font-medium text-slate-900 mb-2">{resetModal.email}</p>
-             <p className="text-slate-500 mb-1">Generated Link:</p>
-             <p className="font-mono text-xs text-blue-600 break-all bg-white p-2 rounded border border-blue-100">{resetModal.link}</p>
-           </div>
-           
-           <div className="pt-2 space-y-3">
-              <p className="text-sm font-medium text-slate-700">Send Link via:</p>
-              <Button onClick={() => handleGmail(getResetEmailData())} className="w-full bg-red-600 hover:bg-red-700 text-white border-transparent">
-                  <Mail size={16} className="mr-2" /> Open in Gmail
-              </Button>
-              <Button onClick={() => handleDefaultMail(getResetEmailData())} variant="outline" className="w-full">
-                  <ExternalLink size={16} className="mr-2" /> Open Default Mail App
-              </Button>
-              <Button onClick={() => handleCopyContent(getResetEmailData())} variant="ghost" className="w-full text-slate-500">
-                  <Copy size={16} className="mr-2" /> Copy Email Content to Clipboard
-              </Button>
-           </div>
-           
-           <div className="flex justify-end pt-4">
-              <Button variant="ghost" onClick={() => setResetModal({...resetModal, isOpen: false})}>Done</Button>
-           </div>
-        </div>
-      </Modal>
-
       <Modal isOpen={!!viewOfficer} onClose={() => setViewOfficer(null)} title="Officer Profile">
         {viewOfficer && (
           <div className="space-y-4">

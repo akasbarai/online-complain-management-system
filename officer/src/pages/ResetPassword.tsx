@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Input } from '../components/ui';
+import { Card, Button, PasswordInput } from '../components/ui';
 import { AuthService } from '../services/api';
 import { Key, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+
+const HELP_DESK_EMAIL = 'akas69167@gmail.com';
 
 export const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -69,6 +71,13 @@ export const ResetPassword = () => {
             </div>
             <h2 className="text-xl font-bold text-slate-900 mb-2">Link Expired or Invalid</h2>
             <p className="text-slate-600 mb-6">{errorMsg}</p>
+            <p className="mb-6 text-sm text-slate-500">
+              Need help? Email{' '}
+              <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold text-primary-700 hover:text-primary-900">
+                {HELP_DESK_EMAIL}
+              </a>
+              .
+            </p>
             <Button onClick={() => navigate('/login')} className="w-full">Return to Login</Button>
           </div>
         )}
@@ -97,8 +106,7 @@ export const ResetPassword = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-                <Input 
-                  type="password" 
+                <PasswordInput
                   required 
                   value={passwords.new}
                   onChange={e => setPasswords({...passwords, new: e.target.value})}
@@ -107,8 +115,7 @@ export const ResetPassword = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
-                <Input 
-                  type="password" 
+                <PasswordInput
                   required 
                   value={passwords.confirm}
                   onChange={e => setPasswords({...passwords, confirm: e.target.value})}
@@ -118,6 +125,12 @@ export const ResetPassword = () => {
             </div>
 
             <Button type="submit" className="w-full" size="lg">Update Password</Button>
+            <p className="text-center text-xs text-slate-500">
+              Help desk:{' '}
+              <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold text-primary-700 hover:text-primary-900">
+                {HELP_DESK_EMAIL}
+              </a>
+            </p>
           </form>
         )}
       </Card>

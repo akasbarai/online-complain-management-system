@@ -15,7 +15,9 @@ export enum ComplaintStatus {
   ESCALATED = 'Escalated',
   RESOLVED = 'Resolved',
   CLOSED = 'Closed',
-  REJECTED = 'Rejected'
+  REJECTED = 'Rejected',
+  WITHDRAWN = 'Withdrawn',
+  REOPENED = 'Reopened'
 }
 
 export enum Priority {
@@ -69,8 +71,6 @@ export interface User {
   complaintCount: number;
   profilePicture?: string;
   idCardUrl?: string;
-  passwordResetRequested?: boolean;
-  passwordResetRequestedAt?: string | null;
 }
 
 export interface Complaint {
@@ -93,6 +93,7 @@ export interface Complaint {
     date: string;
     action: string;
     actor: string;
+    details?: string;
   }>;
   slaStartedAt?: string;
   slaDeadline?: string;

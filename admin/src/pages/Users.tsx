@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button, Badge, Input, Select, Modal, Spinner } from '../components/ui';
 import { UserService, ComplaintService } from '../services/api';
 import { Status, User, Complaint } from '../types';
-import { RefreshCw, Ban, CheckCircle, Search, Filter, Eye, UserPlus, XCircle, Mail, Copy, ExternalLink, Phone, MapPin, Trash2, FileCheck, ImageIcon } from 'lucide-react';
+import { RefreshCw, Ban, CheckCircle, Search, Filter, Eye, UserPlus, XCircle, Mail, Phone, MapPin, Trash2, FileCheck, ImageIcon } from 'lucide-react';
 
 export const Users = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -15,14 +15,6 @@ export const Users = () => {
   const [filterStatus, setFilterStatus] = useState('');
 
   const [viewUser, setViewUser] = useState<User | null>(null);
-
-  const [emailModal, setEmailModal] = useState<{
-    isOpen: boolean;
-    to: string;
-    subject: string;
-    body: string;
-    actionType: 'Verify' | 'Reset';
-  }>({ isOpen: false, to: '', subject: '', body: '', actionType: 'Verify' });
 
   useEffect(() => {
     refresh();
@@ -103,49 +95,7 @@ export const Users = () => {
     }
   }
 
-  const handlePasswordReset = async (id: string, email: string) => {
-    try {
-      const link = await UserService.resetPassword(id);
-      await refresh();
-      refreshAttention();
-      
-      if (link) {
-        const subject = "Password Reset Request - OCMS";
-        const body = `Hello,\n\nA password reset was requested for your account.\n\nClick here to reset: ${link}\n\nIf you did not request this, please ignore this email.\n\nRegards,\nAdmin`;
-
-        setEmailModal({
-          isOpen: true,
-          to: email,
-          subject,
-          body,
-          actionType: 'Reset'
-        });
-      }
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const openGmail = () => {
-    const { to, subject, body } = emailModal;
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(gmailUrl, '_blank');
-  };
-
-  const openDefaultMail = () => {
-    const { to, subject, body } = emailModal;
-    window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
-
-  const copyEmail = () => {
-    const { to, subject, body } = emailModal;
-    const content = `To: ${to}\nSubject: ${subject}\n\n${body}`;
-    navigator.clipboard.writeText(content);
-    alert('Email content copied to clipboard.');
-  };
-
   const pendingCount = users.filter(u => u.status === Status.PENDING).length;
-  const resetReqCount = users.filter(u => u.passwordResetRequested).length;
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = 
@@ -192,7 +142,6 @@ export const Users = () => {
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center space-x-2 ${activeTab === 'all' ? 'border-primary-500 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <span>User Directory</span>
-          {resetReqCount > 0 && <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full" title="Password Reset Requests">{resetReqCount}</span>}
         </button>
         <button 
           onClick={() => setActiveTab('pending')}
@@ -280,15 +229,6 @@ export const Users = () => {
                     <>
                       <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)} title="View">
                         <Eye size={14} />
-                      </Button>
-                      <Button 
-                        variant={user.passwordResetRequested ? "primary" : "outline"} 
-                        size="sm" 
-                        onClick={() => handlePasswordReset(user.id, user.email)} 
-                        title="Reset Password"
-                      >
-                        <RefreshCw size={14} className={user.passwordResetRequested ? "animate-spin-slow" : ""} />
-                        {user.passwordResetRequested && <span className="ml-1 text-xs">Reset Req</span>}
                       </Button>
                       <Button 
                         variant={user.status === Status.ACTIVE ? 'danger' : 'secondary'} 
@@ -475,46 +415,6 @@ export const Users = () => {
                 </div>
             </div>
          )}
-      </Modal>
-
-      <Modal isOpen={emailModal.isOpen} onClose={() => setEmailModal({...emailModal, isOpen: false})} title={`Send ${emailModal.actionType} Email`}>
-        <div className="space-y-4">
-           <div className="bg-green-50 p-4 rounded-lg border border-green-100 text-green-800 text-sm flex items-start gap-2">
-              <CheckCircle size={16} className="mt-0.5 shrink-0" />
-              <div>
-                <p className="font-semibold">
-                  {emailModal.actionType === 'Reset' ? 'Password Reset Link Created' : 'Email Ready'}
-                </p>
-                <p>
-                  {emailModal.actionType === 'Reset'
-                    ? 'Send this reset link to the user so they can choose a new password.'
-                    : 'Send this message to the user.'}
-                </p>
-              </div>
-           </div>
-           <div className="p-4 bg-slate-50 rounded border border-slate-200 text-sm">
-             <p className="text-slate-500 mb-1">Recipient:</p>
-             <p className="font-medium text-slate-900 mb-2">{emailModal.to}</p>
-             <p className="text-slate-500 mb-1">Subject:</p>
-             <p className="font-medium text-slate-900">{emailModal.subject}</p>
-           </div>
-           
-           <div className="pt-2 space-y-3">
-              <Button onClick={openGmail} className="w-full bg-red-600 hover:bg-red-700 text-white border-transparent">
-                  <Mail size={16} className="mr-2" /> Open in Gmail
-              </Button>
-              <Button onClick={openDefaultMail} variant="outline" className="w-full">
-                  <ExternalLink size={16} className="mr-2" /> Open Default Mail App
-              </Button>
-              <Button onClick={copyEmail} variant="ghost" className="w-full text-slate-500">
-                  <Copy size={16} className="mr-2" /> Copy Email Content to Clipboard
-              </Button>
-           </div>
-           
-           <div className="flex justify-end pt-4">
-              <Button variant="ghost" onClick={() => setEmailModal({...emailModal, isOpen: false})}>Done</Button>
-           </div>
-        </div>
       </Modal>
     </div>
   );

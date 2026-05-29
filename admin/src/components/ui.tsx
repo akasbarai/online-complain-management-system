@@ -2,6 +2,7 @@
 import React from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Eye, EyeOff } from 'lucide-react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -81,6 +82,32 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   />
 ));
 Input.displayName = "Input";
+
+export const PasswordInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => {
+  const [visible, setVisible] = React.useState(false);
+  const Icon = visible ? EyeOff : Eye;
+
+  return (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type={visible ? 'text' : 'password'}
+        className={cn('pr-10', className)}
+        {...props}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(prev => !prev)}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus:text-primary-600"
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-pressed={visible}
+      >
+        <Icon size={18} />
+      </button>
+    </div>
+  );
+});
+PasswordInput.displayName = "PasswordInput";
 
 // --- Textarea ---
 export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, ...props }, ref) => (

@@ -154,13 +154,6 @@ export const Layout = () => {
           <div className="flex items-center gap-3 sm:gap-5">
              <button
                type="button"
-               onClick={() => navigate('/lodge')}
-               className="hidden items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:bg-slate-800 sm:inline-flex"
-             >
-                <PlusCircle size={16} /> New Complaint
-             </button>
-             <button
-               type="button"
                onClick={() => navigate('/notifications')}
                className="relative rounded-md p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-primary-700"
                aria-label="Open notifications"

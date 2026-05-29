@@ -15,7 +15,9 @@ export enum ComplaintStatus {
   ESCALATED = 'Escalated',
   RESOLVED = 'Resolved',
   CLOSED = 'Closed',
-  REJECTED = 'Rejected'
+  REJECTED = 'Rejected',
+  WITHDRAWN = 'Withdrawn',
+  REOPENED = 'Reopened'
 }
 
 export enum Priority {

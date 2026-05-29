@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, KeyRound, LogIn, ShieldCheck } from 'lucide-react';
 import { AuthService } from '../services/api';
-import { Button, Card, Input } from '../components/ui';
+import { Button, Card, Input, PasswordInput } from '../components/ui';
+
+const HELP_DESK_EMAIL = 'akas69167@gmail.com';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -34,8 +36,8 @@ export const Login = () => {
     setMessage('');
     setLoading(true);
     try {
-      await AuthService.forgotPassword(email);
-      setMessage('Password reset request sent. The admin will review it.');
+      const data = await AuthService.forgotPassword(email);
+      setMessage(data.message || 'Password reset link sent to your email.');
       setIsForgotMode(false);
     } catch (err: any) {
       setError(err.message);
@@ -82,7 +84,7 @@ export const Login = () => {
                 {isForgotMode ? 'Reset Password' : 'Citizen Login'}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                {isForgotMode ? 'Request admin-assisted password reset.' : 'Sign in to continue.'}
+                {isForgotMode ? 'Enter your email and we will send a reset link.' : 'Sign in to continue.'}
               </p>
             </div>
 
@@ -108,7 +110,7 @@ export const Login = () => {
                 </div>
 
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Sending...' : 'Request Reset Link'}
+                  {loading ? 'Sending...' : 'Send Reset Link'}
                 </Button>
 
                 <button type="button" onClick={() => setIsForgotMode(false)} className="mx-auto flex items-center justify-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800">
@@ -126,7 +128,7 @@ export const Login = () => {
                     <label className="block text-sm font-medium text-slate-700">Password</label>
                     <button type="button" onClick={() => setIsForgotMode(true)} className="text-xs font-semibold text-primary-700 hover:text-primary-800">Forgot password?</button>
                   </div>
-                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter password" />
+                  <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter password" />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? 'Signing In...' : 'Sign In'}
@@ -137,6 +139,13 @@ export const Login = () => {
                 </div>
               </form>
             )}
+
+            <p className="mt-6 text-center text-xs text-slate-500">
+              Need help? Contact the help desk at{' '}
+              <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold text-primary-700 hover:text-primary-800">
+                {HELP_DESK_EMAIL}
+              </a>
+            </p>
           </Card>
         </div>
       </div>

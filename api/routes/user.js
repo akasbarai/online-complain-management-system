@@ -2,10 +2,43 @@ const express = require('express');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
-const { getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
-const { refreshSlaBreaches } = require('../utils/sla');
+const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
+const { deadlineSql, nowSql, refreshSlaBreaches } = require('../utils/sla');
+const { saveDataUrl, sendUploadError } = require('../utils/uploads');
 const { validatePassword, validateRequired } = require('../utils/validation');
+const { getEscalationScheduler } = require('../services/escalationScheduler');
 const router = express.Router();
+
+const USER_WITHDRAW_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Reopened'];
+const USER_MATERIAL_RESPONSE_STATUS = 'Awaiting Materials';
+
+const syncEscalationQueue = async (complaintId) => {
+  const scheduler = getEscalationScheduler();
+  if (!scheduler) return;
+
+  try {
+    await scheduler.syncComplaintById(complaintId);
+  } catch (err) {
+    console.error(`Failed to sync escalation queue for complaint ${complaintId}:`, err);
+  }
+};
+
+const notifyActiveAdmins = async ({ title, message, priority = 'Normal', excludeOfficerId = null }) => {
+  const [admins] = await pool.query(
+    "SELECT id FROM officers WHERE role = 'Admin' AND status = 'Active'"
+  );
+
+  await Promise.all(admins
+    .filter(admin => admin.id !== excludeOfficerId)
+    .map(admin => createNotification(pool, {
+      title,
+      message,
+      target: 'Officers',
+      recipientType: 'Officer',
+      recipientId: admin.id,
+      priority
+    })));
+};
 
 const parseCoordinate = (value) => {
   if (value === undefined || value === null || value === '') return null;
@@ -39,7 +72,7 @@ router.get('/attention', async (req, res) => {
       `SELECT COUNT(*) as count FROM complaints
        WHERE user_id = ?
        AND is_trashed = FALSE
-       AND status IN ('Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Rejected')`,
+       AND status IN ('Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Rejected', 'Reopened')`,
       [req.user.id]
     );
     const notifications = await getUnreadNotificationCount(pool, 'user', req.user.id);
@@ -186,6 +219,7 @@ router.post('/complaints', async (req, res) => {
       return res.status(400).json({ error: 'Please select a valid active department' });
     }
 
+    const evidenceUrl = await saveDataUrl(imageUrl, { req, folder: 'complaints/evidence' });
     const id = createId('C-');
     const connection = await pool.getConnection();
 
@@ -193,9 +227,11 @@ router.post('/complaints', async (req, res) => {
       await connection.beginTransaction();
 
       await connection.query(
-        `INSERT INTO complaints (id, title, description, department_id, user_id, location, latitude, longitude, image_url, priority, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), NOW())`,
-        [id, title.trim(), description.trim(), departmentId, req.user.id, location.trim(), latitude, longitude, imageUrl || null]
+        `INSERT INTO complaints
+          (id, title, description, department_id, user_id, location, latitude, longitude,
+           image_url, priority, sla_started_at, sla_deadline, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Medium', NOW(), ${deadlineSql("'Medium'", 'NOW()')}, NOW(), NOW())`,
+        [id, title.trim(), description.trim(), departmentId, req.user.id, location.trim(), latitude, longitude, evidenceUrl || null]
       );
 
       await connection.query(
@@ -211,14 +247,17 @@ router.post('/complaints', async (req, res) => {
       connection.release();
     }
 
+    await syncEscalationQueue(id);
+
     res.status(201).json({
-      id, title: title.trim(), departmentId, userId: req.user.id, description: description.trim(), location: location.trim(), imageUrl,
+      id, title: title.trim(), departmentId, userId: req.user.id, description: description.trim(), location: location.trim(), imageUrl: evidenceUrl,
       latitude, longitude,
       status: 'Submitted', priority: 'Medium', assignedOfficerId: null,
       currentHierarchyLevelId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       history: [{ date: new Date().toISOString(), action: 'Complaint Submitted', actor: req.user.name, details: 'Submitted via Citizen Portal' }]
     });
   } catch (err) {
+    if (sendUploadError(res, err)) return;
     console.error('Lodge complaint error:', err);
     res.status(500).json({ error: 'Failed to lodge complaint' });
   }
@@ -232,20 +271,210 @@ router.put('/complaints/:id/withdraw', async (req, res) => {
     const requiredError = validateRequired({ reason });
     if (requiredError) return res.status(400).json({ error: requiredError });
 
+    const [complaints] = await pool.query(
+      'SELECT id, status, assigned_officer_id FROM complaints WHERE id = ? AND user_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (!USER_WITHDRAW_STATUSES.includes(complaints[0].status)) {
+      return res.status(400).json({ error: `Cannot withdraw a complaint that is ${complaints[0].status}` });
+    }
+
     const [result] = await pool.query(
-      'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND user_id = ?',
-      ['Closed', req.params.id, req.user.id]
+      'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND user_id = ? AND status IN (?)',
+      ['Withdrawn', req.params.id, req.user.id, USER_WITHDRAW_STATUSES]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, 'Withdrawn by User', 'User', reason]
+      [req.params.id, 'Withdrawn by User', req.user.name || 'User', reason]
     );
+    await syncEscalationQueue(req.params.id);
+
+    if (complaints[0].assigned_officer_id) {
+      await createNotification(pool, {
+        title: `Complaint #${req.params.id} Withdrawn`,
+        message: `The citizen withdrew this complaint. Reason: ${reason}`,
+        target: 'Officers',
+        recipientType: 'Officer',
+        recipientId: complaints[0].assigned_officer_id,
+        priority: 'Important'
+      });
+    }
 
     res.json({ message: 'Complaint withdrawn' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to withdraw complaint' });
+  }
+});
+
+router.put('/complaints/:id/materials', async (req, res) => {
+  try {
+    await refreshSlaBreaches(pool);
+
+    const { materials } = req.body;
+    const requiredError = validateRequired({ materials });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
+    const materialDetails = materials.trim();
+    const [complaints] = await pool.query(
+      'SELECT id, status, assigned_officer_id FROM complaints WHERE id = ? AND user_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (complaints[0].status !== USER_MATERIAL_RESPONSE_STATUS) {
+      return res.status(400).json({ error: 'You can respond only after an officer asks for more information.' });
+    }
+    if (!complaints[0].assigned_officer_id) {
+      return res.status(400).json({ error: 'A response cannot be sent until an officer is assigned.' });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE complaints SET
+        status = 'In Progress',
+        sla_started_at = COALESCE(sla_started_at, ${nowSql()}),
+        sla_deadline = CASE
+          WHEN sla_deadline IS NULL THEN ${deadlineSql('priority', `COALESCE(sla_started_at, ${nowSql()})`)}
+          ELSE sla_deadline
+        END,
+        updated_at = NOW()
+       WHERE id = ? AND user_id = ? AND status = ?`,
+      [req.params.id, req.user.id, USER_MATERIAL_RESPONSE_STATUS]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    await pool.query(
+      'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
+      [req.params.id, 'Citizen response sent', req.user.name || 'User', materialDetails]
+    );
+    await syncEscalationQueue(req.params.id);
+
+    const notificationTitle = `Citizen response received for complaint #${req.params.id}`;
+    const notificationMessage = `${req.user.name || 'The citizen'} responded to the request for more information: ${materialDetails}`;
+
+    await createNotification(pool, {
+      title: notificationTitle,
+      message: notificationMessage,
+      target: 'Officers',
+      recipientType: 'Officer',
+      recipientId: complaints[0].assigned_officer_id,
+      priority: 'Important'
+    });
+
+    await notifyActiveAdmins({
+      title: notificationTitle,
+      message: notificationMessage,
+      priority: 'Important',
+      excludeOfficerId: complaints[0].assigned_officer_id
+    });
+
+    res.json({ message: 'Response sent to officer and admin' });
+  } catch (err) {
+    console.error('Provide materials error:', err);
+    res.status(500).json({ error: 'Failed to send response' });
+  }
+});
+
+router.put('/complaints/:id/accept-resolution', async (req, res) => {
+  try {
+    await refreshSlaBreaches(pool);
+
+    const [complaints] = await pool.query(
+      'SELECT id, status, assigned_officer_id FROM complaints WHERE id = ? AND user_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (complaints[0].status !== 'Resolved') {
+      return res.status(400).json({ error: `Only resolved complaints can be accepted. Current status is ${complaints[0].status}` });
+    }
+
+    const [result] = await pool.query(
+      "UPDATE complaints SET status = 'Closed', updated_at = NOW() WHERE id = ? AND user_id = ? AND status = 'Resolved'",
+      [req.params.id, req.user.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    await pool.query(
+      'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
+      [req.params.id, 'Resolution Accepted by User', req.user.name || 'User', 'Citizen accepted the resolution and closed the complaint.']
+    );
+    await syncEscalationQueue(req.params.id);
+
+    if (complaints[0].assigned_officer_id) {
+      await createNotification(pool, {
+        title: `Complaint #${req.params.id} Closed`,
+        message: 'The citizen accepted the resolution and closed this complaint.',
+        target: 'Officers',
+        recipientType: 'Officer',
+        recipientId: complaints[0].assigned_officer_id
+      });
+    }
+
+    res.json({ message: 'Resolution accepted and complaint closed' });
+  } catch (err) {
+    console.error('Accept resolution error:', err);
+    res.status(500).json({ error: 'Failed to accept resolution' });
+  }
+});
+
+router.put('/complaints/:id/reopen', async (req, res) => {
+  try {
+    await refreshSlaBreaches(pool);
+
+    const { reason } = req.body;
+    const requiredError = validateRequired({ reason });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
+    const [complaints] = await pool.query(
+      'SELECT id, status, assigned_officer_id FROM complaints WHERE id = ? AND user_id = ? AND is_trashed = FALSE',
+      [req.params.id, req.user.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (complaints[0].status !== 'Resolved') {
+      return res.status(400).json({ error: `Only resolved complaints can be reopened by the citizen. Current status is ${complaints[0].status}` });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE complaints SET
+        status = 'Reopened',
+        sla_started_at = ${nowSql()},
+        sla_deadline = ${deadlineSql('priority', nowSql())},
+        sla_breached = FALSE,
+        updated_at = NOW()
+       WHERE id = ? AND user_id = ? AND status = 'Resolved'`,
+      [req.params.id, req.user.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    await pool.query(
+      'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
+      [req.params.id, 'Reopened by User', req.user.name || 'User', reason]
+    );
+    await syncEscalationQueue(req.params.id);
+
+    if (complaints[0].assigned_officer_id) {
+      await createNotification(pool, {
+        title: `Complaint #${req.params.id} Reopened`,
+        message: `The citizen reopened this complaint. Reason: ${reason}`,
+        target: 'Officers',
+        recipientType: 'Officer',
+        recipientId: complaints[0].assigned_officer_id,
+        priority: 'Important'
+      });
+    }
+
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Reopened`,
+      message: `${req.user.name || 'A citizen'} reopened a resolved complaint. Reason: ${reason}`,
+      target: 'Officers',
+      priority: 'Important'
+    });
+
+    res.json({ message: 'Complaint reopened' });
+  } catch (err) {
+    console.error('User reopen complaint error:', err);
+    res.status(500).json({ error: 'Failed to reopen complaint' });
   }
 });
 
@@ -271,12 +500,15 @@ router.put('/notifications/:id/read', async (req, res) => {
 router.put('/profile', async (req, res) => {
   try {
     const { name, mobile, address, profilePicture, idCardUrl } = req.body;
+    const profilePictureUrl = await saveDataUrl(profilePicture, { req, folder: 'users/profiles' });
+    const idCardFileUrl = await saveDataUrl(idCardUrl, { req, folder: 'users/id-cards' });
     await pool.query(
       'UPDATE users SET name = COALESCE(?, name), mobile = COALESCE(?, mobile), address = COALESCE(?, address), profile_picture = COALESCE(?, profile_picture), id_card_url = COALESCE(?, id_card_url) WHERE id = ?',
-      [name, mobile, address, profilePicture, idCardUrl, req.user.id]
+      [name, mobile, address, profilePictureUrl, idCardFileUrl, req.user.id]
     );
     res.json({ message: 'Profile updated' });
   } catch (err) {
+    if (sendUploadError(res, err)) return;
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });

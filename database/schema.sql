@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS complaints (
     latitude DECIMAL(10, 8) DEFAULT NULL,
     longitude DECIMAL(11, 8) DEFAULT NULL,
     image_url LONGTEXT,
-    status ENUM('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected') DEFAULT 'Submitted',
+    status ENUM('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected', 'Withdrawn', 'Reopened') DEFAULT 'Submitted',
     priority ENUM('Unassigned', 'Low', 'Medium', 'High', 'Critical') DEFAULT 'Medium',
     assigned_officer_id VARCHAR(50) DEFAULT NULL,
     current_hierarchy_level_id VARCHAR(50) DEFAULT NULL,
@@ -124,6 +124,18 @@ CREATE TABLE IF NOT EXISTS notification_reads (
     FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id VARCHAR(50) PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    account_type ENUM('user', 'officer') NOT NULL,
+    account_id VARCHAR(50) NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    created_by ENUM('self', 'admin') DEFAULT 'self',
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX idx_complaints_status ON complaints(status);
 CREATE INDEX idx_complaints_user_id ON complaints(user_id);
 CREATE INDEX idx_complaints_officer_id ON complaints(assigned_officer_id);
@@ -132,6 +144,8 @@ CREATE INDEX idx_complaints_sla ON complaints(sla_deadline);
 CREATE INDEX idx_complaints_coordinates ON complaints(latitude, longitude);
 CREATE INDEX idx_notifications_recipient ON notifications(recipient_type, recipient_id);
 CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id);
+CREATE INDEX idx_password_reset_tokens_account ON password_reset_tokens(account_type, account_id);
+CREATE INDEX idx_password_reset_tokens_valid ON password_reset_tokens(account_type, account_id, used_at, expires_at);
 
 -- Migration: Fix base64 image storage (run if DB already exists)
 -- ALTER TABLE users MODIFY COLUMN profile_picture LONGTEXT;

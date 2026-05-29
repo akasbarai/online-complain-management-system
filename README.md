@@ -161,22 +161,22 @@ When an admin verifies a citizen account, the API sends the acknowledgement emai
 
 ```env
 USER_PORTAL_URL=http://localhost:5175
-GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_USER=akas69167@gmail.com
 GMAIL_APP_PASSWORD=your_google_app_password
-MAIL_FROM="OCMS Admin <your_gmail_address@gmail.com>"
+MAIL_FROM="OCMS Admin <akas69167@gmail.com>"
 ```
 
-For Gmail, create an App Password in your Google account and use that value for `GMAIL_APP_PASSWORD`; your normal Gmail password will not work. On Render or another host, add the same variables to the backend service environment variables and redeploy/restart the backend.
+For Gmail, create an App Password in the `akas69167@gmail.com` Google account and use that value for `GMAIL_APP_PASSWORD`; your normal Gmail password will not work. On Render or another host, add the same variables to the backend service environment variables and redeploy/restart the backend.
 
-You can also use any SMTP provider instead:
+You can also set an explicit SMTP host for the same admin mailbox:
 
 ```env
-SMTP_HOST=smtp.example.com
+SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER=your_smtp_username
+SMTP_USER=akas69167@gmail.com
 SMTP_PASS=your_smtp_password
-MAIL_FROM="OCMS Admin <no-reply@example.com>"
+MAIL_FROM="OCMS Admin <akas69167@gmail.com>"
 ```
 
 ### How the Connection Works

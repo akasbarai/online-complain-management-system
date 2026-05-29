@@ -6,6 +6,8 @@ import { Clock, CheckCircle, FileText, ArrowRight } from 'lucide-react';
 import { ComplaintStatus, Complaint } from '../types';
 import { Link } from 'react-router-dom';
 
+const terminalStatuses = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN];
+
 export const Dashboard = () => {
   const officer = AuthService.getCurrentOfficer();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -33,8 +35,8 @@ export const Dashboard = () => {
   const stats = [
     { label: 'Assigned', value: complaints.filter(c => c.status === ComplaintStatus.ASSIGNED).length, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'In Progress', value: complaints.filter(c => c.status === ComplaintStatus.IN_PROGRESS).length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Awaiting Materials', value: complaints.filter(c => c.status === ComplaintStatus.AWAITING_MATERIALS).length, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: 'Resolved', value: complaints.filter(c => c.status === ComplaintStatus.RESOLVED).length, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Waiting for Citizen', value: complaints.filter(c => c.status === ComplaintStatus.AWAITING_MATERIALS).length, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+    { label: 'Resolved', value: complaints.filter(c => c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED).length, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
   ];
 
   if (loading) {
@@ -81,7 +83,7 @@ export const Dashboard = () => {
                </Link>
             </div>
             <div className="space-y-3">
-               {complaints.filter(c => c.status !== ComplaintStatus.RESOLVED).slice(0, 3).map(c => (
+               {complaints.filter(c => !terminalStatuses.includes(c.status)).slice(0, 3).map(c => (
                  <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50">
                     <div className="flex items-center space-x-3">
                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
@@ -92,7 +94,7 @@ export const Dashboard = () => {
                     </div>
                  </div>
                ))}
-               {complaints.filter(c => c.status !== ComplaintStatus.RESOLVED).length === 0 && (
+               {complaints.filter(c => !terminalStatuses.includes(c.status)).length === 0 && (
                   <p className="text-slate-500 italic text-sm">No pending assignments. Good job!</p>
                )}
             </div>

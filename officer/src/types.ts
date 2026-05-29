@@ -15,7 +15,9 @@ export enum ComplaintStatus {
   ESCALATED = 'Escalated',
   RESOLVED = 'Resolved',
   CLOSED = 'Closed',
-  REJECTED = 'Rejected'
+  REJECTED = 'Rejected',
+  WITHDRAWN = 'Withdrawn',
+  REOPENED = 'Reopened'
 }
 
 export enum Priority {
@@ -37,12 +39,12 @@ export interface Officer {
   name: string;
   email: string;
   departmentId: string;
+  departmentName?: string;
   hierarchyLevelId: string | null;
   role: 'Officer' | 'Admin';
   jurisdiction?: string;
   status: Status;
   profilePhoto?: string;
-  // Denormalized fields for Officer App context
   designation?: string; 
 }
 
@@ -75,6 +77,7 @@ export interface Complaint {
     date: string;
     action: string;
     actor: string;
+    details?: string;
   }>;
   slaStartedAt?: string;
   slaDeadline?: string;

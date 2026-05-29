@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { Card, Button } from '../components/ui';
 import { Clock, ShieldCheck } from 'lucide-react';
 
+const HELP_DESK_EMAIL = 'akas69167@gmail.com';
+
 export const VerifyAccount = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -20,6 +22,11 @@ export const VerifyAccount = () => {
             <Clock className="text-yellow-600 shrink-0 mt-0.5" size={20} />
             <p className="text-sm text-yellow-800">
               If your registration is already approved, sign in with your email and password. Pending accounts cannot access the portal.
+              {' '}For help, email{' '}
+              <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold underline">
+                {HELP_DESK_EMAIL}
+              </a>
+              .
             </p>
           </div>
           <Link to="/login" className="w-full">

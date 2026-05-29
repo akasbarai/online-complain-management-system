@@ -2,6 +2,7 @@
 import React from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,6 +40,31 @@ export const Badge: React.FC<{ children: React.ReactNode; variant?: 'default' | 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => (
   <input ref={ref} className={cn("flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none", className)} {...props} />
 ));
+
+export const PasswordInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => {
+  const [visible, setVisible] = React.useState(false);
+  const Icon = visible ? EyeOff : Eye;
+
+  return (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type={visible ? 'text' : 'password'}
+        className={cn('pr-10', className)}
+        {...props}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(prev => !prev)}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus:text-primary-600"
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-pressed={visible}
+      >
+        <Icon size={18} />
+      </button>
+    </div>
+  );
+});
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, ...props }, ref) => (
   <textarea ref={ref} className={cn("flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none", className)} {...props} />

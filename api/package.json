@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "npm run test:workflow && npm run test:reset-tokens && npm run test:escalation-heap",
+    "test:workflow": "node tests/workflow.test.js",
+    "test:reset-tokens": "node tests/passwordResetTokens.test.js",
+    "test:escalation-heap": "node tests/escalationScheduler.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

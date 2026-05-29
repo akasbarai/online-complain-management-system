@@ -51,12 +51,12 @@ Add mail settings to the same backend service if you want automatic acknowledgem
 
 ```env
 USER_PORTAL_URL=https://ocms.akashbarai.com.np
-GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_USER=akas69167@gmail.com
 GMAIL_APP_PASSWORD=your_google_app_password
-MAIL_FROM="OCMS Admin <your_gmail_address@gmail.com>"
+MAIL_FROM="OCMS Admin <akas69167@gmail.com>"
 ```
 
-Use a Google App Password for `GMAIL_APP_PASSWORD`; a normal Gmail password will be rejected by Gmail SMTP. After changing these variables, restart or redeploy the backend.
+Use a Google App Password from the `akas69167@gmail.com` account for `GMAIL_APP_PASSWORD`; a normal Gmail password will be rejected by Gmail SMTP. After changing these variables, restart or redeploy the backend.
 
 If Render gives both an internal/private host and a public host, use the internal/private host because your API is also on Render.
 

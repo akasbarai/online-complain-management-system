@@ -72,13 +72,6 @@ export const OfficerService = {
   getByLevel: async (levelId: string) => {
     const officers = await OfficerService.getAll();
     return officers.filter(o => o.hierarchyLevelId === levelId && o.status === 'Active');
-  },
-  resetPassword: async (id: string) => {
-    const data = await api<{ token: string }>(`/admin/officers/${id}/password-reset-link`, { method: 'POST' });
-    const baseUrl = window.location.origin.includes('localhost')
-      ? 'http://localhost:5174'
-      : `${window.location.origin}/officer`;
-    return `${baseUrl}/#/reset-password?token=${encodeURIComponent(data.token)}`;
   }
 };
 
@@ -87,13 +80,6 @@ export const UserService = {
   toggleStatus: (id: string, status: string) => api(`/admin/users/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   verifyUser: async (id: string) => {
     return api<{ message: string; emailSent: boolean; emailError?: string | null }>(`/admin/users/${id}/verify`, { method: 'PUT' });
-  },
-  resetPassword: async (id: string) => {
-    const data = await api<{ token: string }>(`/admin/users/${id}/password-reset-link`, { method: 'POST' });
-    const baseUrl = window.location.origin.includes('localhost')
-      ? 'http://localhost:5175'
-      : window.location.origin.replace(/\/admin.*$/, '');
-    return `${baseUrl}/#/reset-password?token=${encodeURIComponent(data.token)}`;
   },
   delete: (id: string) => api(`/admin/users/${id}`, { method: 'DELETE' })
 };
@@ -115,6 +101,8 @@ export const ComplaintService = {
     api(`/admin/complaints/${complaintId}/reassign`, { method: 'PUT', body: JSON.stringify({ officerId, reason }) }),
   updateStatus: (complaintId: string, status: string, notes?: string) =>
     api(`/admin/complaints/${complaintId}/status`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
+  reopen: (complaintId: string, reason: string) =>
+    api(`/admin/complaints/${complaintId}/reopen`, { method: 'PUT', body: JSON.stringify({ reason }) }),
   updatePriority: (complaintId: string, priority: string) =>
     api(`/admin/complaints/${complaintId}/priority`, { method: 'PUT', body: JSON.stringify({ priority }) }),
   getAnalytics: () => api('/admin/analytics')

@@ -1,13 +1,13 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createId } = require('../utils/id');
 const { sendAccountVerifiedEmail } = require('../utils/email');
 const { createNotification, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { deadlineSql, nowSql, refreshSlaBreaches } = require('../utils/sla');
+const { getEscalationScheduler } = require('../services/escalationScheduler');
 const {
   isValidEmail,
   normalizeEmail,
@@ -17,10 +17,67 @@ const {
 const router = express.Router();
 
 const USER_STATUSES = ['Active', 'Inactive', 'Blocked', 'Pending'];
-const COMPLAINT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected'];
+const COMPLAINT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected', 'Withdrawn', 'Reopened'];
 const PRIORITIES = ['Unassigned', 'Low', 'Medium', 'High', 'Critical'];
 const NOTIFICATION_TARGETS = ['All', 'Users', 'Officers'];
 const NOTIFICATION_PRIORITIES = ['Normal', 'Important', 'Urgent'];
+const TERMINAL_COMPLAINT_STATUSES = ['Resolved', 'Closed', 'Rejected', 'Withdrawn'];
+const OFFICER_REQUIRED_STATUSES = ['Assigned', 'In Progress', 'Awaiting Materials', 'Resolved'];
+const ADMIN_STATUS_TRANSITIONS = {
+  Submitted: ['Under Review', 'Rejected', 'Closed'],
+  'Under Review': ['Assigned', 'Rejected', 'Closed'],
+  Assigned: ['In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Rejected', 'Closed'],
+  'In Progress': ['Awaiting Materials', 'Escalated', 'Resolved', 'Rejected', 'Closed'],
+  'Awaiting Materials': ['In Progress', 'Escalated', 'Resolved', 'Rejected', 'Closed'],
+  Escalated: ['Assigned', 'In Progress', 'Awaiting Materials', 'Resolved', 'Rejected', 'Closed'],
+  Reopened: ['Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Rejected', 'Closed'],
+  Resolved: ['Closed'],
+  Closed: [],
+  Rejected: [],
+  Withdrawn: []
+};
+
+const isTerminalComplaintStatus = (status) => TERMINAL_COMPLAINT_STATUSES.includes(status);
+
+const syncEscalationQueue = async (complaintId) => {
+  const scheduler = getEscalationScheduler();
+  if (!scheduler) return;
+
+  try {
+    await scheduler.syncComplaintById(complaintId);
+  } catch (err) {
+    console.error(`Failed to sync escalation queue for complaint ${complaintId}:`, err);
+  }
+};
+
+const canAdminSetComplaintStatus = (currentStatus, nextStatus, hasAssignedOfficer) => {
+  if (currentStatus === nextStatus) {
+    return { allowed: false, reason: `Complaint is already ${nextStatus}` };
+  }
+
+  const allowedStatuses = ADMIN_STATUS_TRANSITIONS[currentStatus] || [];
+  if (!allowedStatuses.includes(nextStatus)) {
+    return { allowed: false, reason: `Cannot change complaint from ${currentStatus} to ${nextStatus}` };
+  }
+
+  if (OFFICER_REQUIRED_STATUSES.includes(nextStatus) && !hasAssignedOfficer) {
+    return { allowed: false, reason: `Assign an officer before setting this complaint to ${nextStatus}` };
+  }
+
+  return { allowed: true };
+};
+
+const notifyAssignedOfficer = async (complaint, title, message, priority = 'Normal') => {
+  if (!complaint.assigned_officer_id) return;
+  await createNotification(pool, {
+    title,
+    message,
+    target: 'Officers',
+    recipientType: 'Officer',
+    recipientId: complaint.assigned_officer_id,
+    priority
+  });
+};
 
 const getUserPortalBaseUrl = (req) => {
   if (process.env.USER_PORTAL_URL) {
@@ -53,7 +110,6 @@ router.get('/attention', async (req, res) => {
     await refreshSlaBreaches(pool);
 
     const [[pendingUsers]] = await pool.query("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'");
-    const [[passwordResetRequests]] = await pool.query('SELECT COUNT(*) as count FROM users WHERE password_reset_requested = TRUE');
     const [[unassignedComplaints]] = await pool.query(
       "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id IS NULL AND is_trashed = FALSE"
     );
@@ -63,13 +119,13 @@ router.get('/attention', async (req, res) => {
     const [[slaBreachedComplaints]] = await pool.query(
       `SELECT COUNT(*) as count FROM complaints
        WHERE is_trashed = FALSE
-       AND status NOT IN ('Resolved', 'Closed', 'Rejected')
+       AND status NOT IN ('Resolved', 'Closed', 'Rejected', 'Withdrawn')
        AND (sla_breached = TRUE OR (sla_deadline IS NOT NULL AND sla_deadline < ${nowSql()}))`
     );
     const [[complaintsNeedingAttention]] = await pool.query(
       `SELECT COUNT(DISTINCT id) as count FROM complaints
        WHERE is_trashed = FALSE
-       AND status NOT IN ('Resolved', 'Closed', 'Rejected')
+       AND status NOT IN ('Resolved', 'Closed', 'Rejected', 'Withdrawn')
        AND (
          assigned_officer_id IS NULL
          OR status = 'Escalated'
@@ -93,9 +149,8 @@ router.get('/attention', async (req, res) => {
 
     res.json({
       notifications,
-      users: pendingUsers.count + passwordResetRequests.count,
+      users: pendingUsers.count,
       pendingUsers: pendingUsers.count,
-      passwordResetRequests: passwordResetRequests.count,
       complaints: complaintsNeedingAttention.count,
       unassignedComplaints: unassignedComplaints.count,
       escalatedComplaints: escalatedComplaints.count,
@@ -331,26 +386,6 @@ router.post('/officers', async (req, res) => {
   }
 });
 
-router.post('/officers/:id/password-reset-link', async (req, res) => {
-  try {
-    const [officers] = await pool.query(
-      "SELECT id, email FROM officers WHERE id = ? AND role != 'Admin'",
-      [req.params.id]
-    );
-    if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
-
-    const token = jwt.sign(
-      { id: officers[0].id, email: officers[0].email, accountType: 'officer', purpose: 'password-reset' },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.json({ token, email: officers[0].email });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to create officer password reset link' });
-  }
-});
-
 router.put('/officers/:id/assignment', async (req, res) => {
   try {
     const { hierarchyLevelId, jurisdiction } = req.body;
@@ -392,7 +427,7 @@ router.delete('/officers/:id', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const [users] = await pool.query(
-      `SELECT id, name, email, mobile, address, status, password_reset_requested, password_reset_requested_at,
+      `SELECT id, name, email, mobile, address, status,
         profile_picture, id_card_url, registered_date,
         (SELECT COUNT(*) FROM complaints WHERE user_id = users.id) as complaint_count
        FROM users`
@@ -404,8 +439,6 @@ router.get('/users', async (req, res) => {
       mobile: u.mobile,
       address: u.address,
       status: u.status,
-      passwordResetRequested: u.password_reset_requested === 1,
-      passwordResetRequestedAt: u.password_reset_requested_at,
       profilePicture: u.profile_picture,
       idCardUrl: u.id_card_url,
       registeredDate: u.registered_date,
@@ -484,28 +517,6 @@ router.put('/users/:id/verify', async (req, res) => {
   }
 });
 
-router.post('/users/:id/password-reset-link', async (req, res) => {
-  try {
-    const [users] = await pool.query('SELECT id, email FROM users WHERE id = ?', [req.params.id]);
-    if (users.length === 0) return res.status(404).json({ error: 'User not found' });
-
-    const token = jwt.sign(
-      { id: users[0].id, email: users[0].email, accountType: 'user', purpose: 'password-reset' },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    await pool.query(
-      'UPDATE users SET password_reset_requested = FALSE, password_reset_requested_at = NULL WHERE id = ?',
-      [users[0].id]
-    );
-
-    res.json({ token, email: users[0].email });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to create password reset link' });
-  }
-});
-
 router.delete('/users/:id', async (req, res) => {
   try {
     const [result] = await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
@@ -566,7 +577,8 @@ router.get('/complaints', async (req, res) => {
       history: history.filter(h => h.complaint_id === c.id).map(h => ({
         date: h.created_at,
         action: h.action,
-        actor: h.actor
+        actor: h.actor,
+        details: h.details
       }))
     }));
 
@@ -586,19 +598,28 @@ router.put('/complaints/:id/reassign', async (req, res) => {
     if (requiredError) return res.status(400).json({ error: requiredError });
 
     const [complaints] = await pool.query(
-      'SELECT id, user_id FROM complaints WHERE id = ? AND is_trashed = FALSE',
+      'SELECT id, user_id, department_id, status FROM complaints WHERE id = ? AND is_trashed = FALSE',
       [req.params.id]
     );
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (isTerminalComplaintStatus(complaints[0].status)) {
+      return res.status(400).json({ error: `${complaints[0].status} complaints cannot be assigned or reassigned` });
+    }
 
-    const [officers] = await pool.query('SELECT hierarchy_level_id FROM officers WHERE id = ?', [officerId]);
+    const [officers] = await pool.query(
+      "SELECT hierarchy_level_id, department_id FROM officers WHERE id = ? AND status = 'Active' AND role != 'Admin'",
+      [officerId]
+    );
     if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
+    if (officers[0].department_id !== complaints[0].department_id) {
+      return res.status(400).json({ error: 'Officer must belong to the complaint department' });
+    }
 
     const [result] = await pool.query(
       `UPDATE complaints SET 
         assigned_officer_id = ?, 
         current_hierarchy_level_id = ?,
-        status = CASE WHEN status = 'Submitted' THEN 'Assigned' ELSE status END,
+        status = 'Assigned',
         sla_started_at = CASE WHEN sla_started_at IS NULL THEN ${nowSql()} ELSE sla_started_at END,
         sla_deadline = CASE
           WHEN sla_deadline IS NULL THEN ${deadlineSql('priority', `COALESCE(sla_started_at, ${nowSql()})`)}
@@ -614,6 +635,7 @@ router.put('/complaints/:id/reassign', async (req, res) => {
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
       [req.params.id, `Reassigned: ${reason}`, 'Admin', reason]
     );
+    await syncEscalationQueue(req.params.id);
 
     await createNotification(pool, {
       title: 'New Complaint Assigned',
@@ -645,12 +667,21 @@ router.put('/complaints/:id/status', async (req, res) => {
     const { status, notes } = req.body;
     const statusError = validateEnum(status, COMPLAINT_STATUSES, 'Status');
     if (statusError) return res.status(400).json({ error: statusError });
+    if (['Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected'].includes(status) && !String(notes || '').trim()) {
+      return res.status(400).json({ error: 'Notes are required for this status update' });
+    }
 
     const [complaints] = await pool.query(
-      'SELECT id, user_id FROM complaints WHERE id = ? AND is_trashed = FALSE',
+      'SELECT id, user_id, assigned_officer_id, status FROM complaints WHERE id = ? AND is_trashed = FALSE',
       [req.params.id]
     );
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    const transition = canAdminSetComplaintStatus(
+      complaints[0].status,
+      status,
+      Boolean(complaints[0].assigned_officer_id)
+    );
+    if (!transition.allowed) return res.status(400).json({ error: transition.reason });
 
     const [result] = await pool.query(
       `UPDATE complaints SET 
@@ -669,22 +700,99 @@ router.put('/complaints/:id/status', async (req, res) => {
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
+    const action = status === 'Awaiting Materials'
+      ? 'More information requested from citizen'
+      : `Status Update: ${status}${notes ? ` - ${notes}` : ''}`;
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, `Status Update: ${status}${notes ? ` - ${notes}` : ''}`, 'Admin', notes || '']
+      [req.params.id, action, 'Admin', notes || '']
     );
+    await syncEscalationQueue(req.params.id);
+
+    const userNotificationTitle = status === 'Awaiting Materials'
+      ? `Action needed for complaint #${req.params.id}`
+      : `Complaint #${req.params.id} Update`;
+    const userNotificationMessage = status === 'Awaiting Materials'
+      ? `OCMS needs more information before continuing: ${notes}`
+      : `Status updated to ${status} by Admin. ${notes || ''}`.trim();
 
     await createNotification(pool, {
-      title: `Complaint #${req.params.id} Update`,
-      message: `Status updated to ${status} by Admin. ${notes || ''}`.trim(),
+      title: userNotificationTitle,
+      message: userNotificationMessage,
       target: 'Users',
       recipientType: 'User',
-      recipientId: complaints[0].user_id
+      recipientId: complaints[0].user_id,
+      priority: status === 'Awaiting Materials' ? 'Important' : 'Normal'
     });
+
+    await notifyAssignedOfficer(
+      complaints[0],
+      status === 'Awaiting Materials' ? `Information requested for complaint #${req.params.id}` : `Complaint #${req.params.id} Update`,
+      status === 'Awaiting Materials' ? `Admin asked the citizen for more information: ${notes}` : `Status updated to ${status} by Admin. ${notes || ''}`.trim(),
+      ['Awaiting Materials', 'Escalated', 'Rejected', 'Closed'].includes(status) ? 'Important' : 'Normal'
+    );
 
     res.json({ message: 'Complaint status updated' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+router.put('/complaints/:id/reopen', async (req, res) => {
+  try {
+    await refreshSlaBreaches(pool);
+
+    const { reason } = req.body;
+    const requiredError = validateRequired({ reason });
+    if (requiredError) return res.status(400).json({ error: requiredError });
+
+    const [complaints] = await pool.query(
+      'SELECT id, user_id, assigned_officer_id, status FROM complaints WHERE id = ? AND is_trashed = FALSE',
+      [req.params.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (!isTerminalComplaintStatus(complaints[0].status)) {
+      return res.status(400).json({ error: `Only terminal complaints can be reopened. Current status is ${complaints[0].status}` });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE complaints SET
+        status = 'Reopened',
+        sla_started_at = ${nowSql()},
+        sla_deadline = ${deadlineSql('priority', nowSql())},
+        sla_breached = FALSE,
+        updated_at = NOW()
+       WHERE id = ?`,
+      [req.params.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
+
+    await pool.query(
+      'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
+      [req.params.id, 'Reopened by Admin', 'Admin', reason]
+    );
+    await syncEscalationQueue(req.params.id);
+
+    await createNotification(pool, {
+      title: `Complaint #${req.params.id} Reopened`,
+      message: `Your complaint has been reopened by Admin. Reason: ${reason}`,
+      target: 'Users',
+      recipientType: 'User',
+      recipientId: complaints[0].user_id,
+      priority: 'Important'
+    });
+
+    await notifyAssignedOfficer(
+      complaints[0],
+      `Complaint #${req.params.id} Reopened`,
+      `Admin reopened this complaint. Reason: ${reason}`,
+      'Important'
+    );
+
+    res.json({ message: 'Complaint reopened' });
+  } catch (err) {
+    console.error('Reopen complaint error:', err);
+    res.status(500).json({ error: 'Failed to reopen complaint' });
   }
 });
 
@@ -696,17 +804,26 @@ router.put('/complaints/:id/priority', async (req, res) => {
     const priorityError = validateEnum(priority, PRIORITIES, 'Priority');
     if (priorityError) return res.status(400).json({ error: priorityError });
 
-    await pool.query(
+    const [complaints] = await pool.query(
+      'SELECT id, status FROM complaints WHERE id = ? AND is_trashed = FALSE',
+      [req.params.id]
+    );
+    if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (isTerminalComplaintStatus(complaints[0].status)) {
+      return res.status(400).json({ error: `Priority cannot be changed after a complaint is ${complaints[0].status}` });
+    }
+
+    const [result] = await pool.query(
       `UPDATE complaints SET
         priority = ?,
         sla_started_at = CASE
-          WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials')
+          WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials', 'Reopened')
             AND sla_started_at IS NULL
           THEN ${nowSql()}
           ELSE sla_started_at
         END,
         sla_deadline = CASE
-          WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials')
+          WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials', 'Reopened')
             AND sla_breached = FALSE
           THEN ${deadlineSql('?', `COALESCE(sla_started_at, ${nowSql()})`)}
           ELSE sla_deadline
@@ -715,10 +832,13 @@ router.put('/complaints/:id/priority', async (req, res) => {
        WHERE id = ?`,
       [priority, priority, req.params.id]
     );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
+
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor) VALUES (?, ?, ?)',
       [req.params.id, `Priority Update: ${priority}`, 'Admin']
     );
+    await syncEscalationQueue(req.params.id);
     res.json({ message: 'Priority updated' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update priority' });
@@ -741,7 +861,7 @@ router.get('/analytics', async (req, res) => {
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN status IN ('Submitted', 'Escalated') THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status IN ('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Reopened') THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN sla_breached = TRUE THEN 1 ELSE 0 END) as sla_breached
       FROM complaints WHERE is_trashed = FALSE
     `);

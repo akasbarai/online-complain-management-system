@@ -12,6 +12,8 @@ import { ResetPassword } from './pages/ResetPassword';
 import { AuthService } from './services/api';
 import { Status } from './types';
 
+const SESSION_STATUS_REFRESH_MS = 60_000;
+
 // Use a layout component pattern instead of wrapping children to handle protection
 const ProtectedLayout = () => {
   const [officer, setOfficer] = React.useState(AuthService.getCurrentOfficer());
@@ -42,8 +44,17 @@ const ProtectedLayout = () => {
       }
     };
 
-    const interval = setInterval(checkStatus, 3000);
-    return () => clearInterval(interval);
+    const handleFocus = () => {
+      checkStatus();
+    };
+
+    checkStatus();
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(checkStatus, SESSION_STATUS_REFRESH_MS);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [officer]);
 
   if (!officer || officer.status === Status.INACTIVE || officer.status === Status.BLOCKED) {

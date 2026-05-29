@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
-import { Input, Button } from '../components/ui';
+import { Input, Button, PasswordInput } from '../components/ui';
 import { AuthService } from '../services/api';
 
 export const Login = () => {
@@ -90,8 +90,7 @@ export const Login = () => {
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Password <span className="text-red-500">*</span>
             </label>
-            <Input 
-              type="password" 
+            <PasswordInput
               value={password} 
               placeholder="enter password"
               onChange={e => {

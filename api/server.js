@@ -1,9 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const pool = require('./db/connection');
 const rateLimit = require('./middleware/rateLimit');
 const { getMailStatus } = require('./utils/email');
+const { UPLOAD_ROOT } = require('./utils/uploads');
+const { createEscalationScheduler, setEscalationScheduler } = require('./services/escalationScheduler');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -13,6 +16,8 @@ const publicRoutes = require('./routes/public');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+app.set('trust proxy', 1);
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'replace_with_a_long_random_string') {
   console.error('JWT_SECRET must be set to a strong secret before starting the API.');
@@ -28,6 +33,7 @@ const ensureMigrations = async () => {
   const migrations = [
     "ALTER TABLE users ADD COLUMN password_reset_requested BOOLEAN DEFAULT FALSE",
     "ALTER TABLE users ADD COLUMN password_reset_requested_at DATETIME DEFAULT NULL",
+    "ALTER TABLE complaints MODIFY COLUMN status ENUM('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Resolved', 'Closed', 'Rejected', 'Withdrawn', 'Reopened') DEFAULT 'Submitted'",
     "ALTER TABLE complaints MODIFY COLUMN image_url LONGTEXT",
     "ALTER TABLE complaints ADD COLUMN latitude DECIMAL(10, 8) DEFAULT NULL AFTER location",
     "ALTER TABLE complaints ADD COLUMN longitude DECIMAL(11, 8) DEFAULT NULL AFTER latitude",
@@ -35,7 +41,7 @@ const ensureMigrations = async () => {
     `UPDATE complaints
      SET sla_started_at = CASE
        WHEN sla_deadline IS NOT NULL THEN DATE_SUB(sla_deadline, INTERVAL 72 HOUR)
-       WHEN status IN ('Assigned', 'In Progress', 'Awaiting Materials') THEN COALESCE(updated_at, created_at, NOW())
+       WHEN status IN ('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Reopened') THEN COALESCE(created_at, updated_at, NOW())
        ELSE sla_started_at
      END
      WHERE sla_started_at IS NULL`,
@@ -51,7 +57,7 @@ const ensureMigrations = async () => {
        END HOUR
      )
      WHERE sla_started_at IS NOT NULL
-       AND status IN ('Assigned', 'In Progress', 'Awaiting Materials')
+       AND status IN ('Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Escalated', 'Reopened')
        AND sla_breached = FALSE`,
     "ALTER TABLE notifications ADD COLUMN recipient_type ENUM('User', 'Officer') DEFAULT NULL",
     "ALTER TABLE notifications ADD COLUMN recipient_id VARCHAR(50) DEFAULT NULL",
@@ -64,9 +70,22 @@ const ensureMigrations = async () => {
       UNIQUE KEY unique_notification_recipient (notification_id, recipient_type, recipient_id),
       FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
     )`,
+    `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id VARCHAR(50) PRIMARY KEY,
+      token_hash CHAR(64) NOT NULL UNIQUE,
+      account_type ENUM('user', 'officer') NOT NULL,
+      account_id VARCHAR(50) NOT NULL,
+      email VARCHAR(150) NOT NULL,
+      created_by ENUM('self', 'admin') DEFAULT 'self',
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
     "CREATE INDEX idx_notifications_recipient ON notifications(recipient_type, recipient_id)",
     "CREATE INDEX idx_notification_reads_recipient ON notification_reads(recipient_type, recipient_id)",
-    "CREATE INDEX idx_complaints_coordinates ON complaints(latitude, longitude)"
+    "CREATE INDEX idx_complaints_coordinates ON complaints(latitude, longitude)",
+    "CREATE INDEX idx_password_reset_tokens_account ON password_reset_tokens(account_type, account_id)",
+    "CREATE INDEX idx_password_reset_tokens_valid ON password_reset_tokens(account_type, account_id, used_at, expires_at)"
   ];
 
   for (const sql of migrations) {
@@ -119,6 +138,10 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
+app.use('/uploads', express.static(path.resolve(UPLOAD_ROOT), {
+  maxAge: '1d',
+  immutable: true
+}));
 
 app.get('/health', async (req, res) => {
   try {
@@ -149,9 +172,15 @@ app.use((err, req, res, next) => {
 });
 
 ensureMigrations()
-  .then(() => {
+  .then(async () => {
+    const escalationScheduler = createEscalationScheduler(pool);
+    setEscalationScheduler(escalationScheduler);
+    const queuedComplaints = await escalationScheduler.buildHeap();
+    escalationScheduler.start();
+
     app.listen(PORT, () => {
       console.log(`OCMS API running on http://localhost:${PORT}`);
+      console.log(`Escalation scheduler queued ${queuedComplaints} complaint(s).`);
     });
   })
   .catch((err) => {

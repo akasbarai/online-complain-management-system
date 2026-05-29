@@ -72,7 +72,10 @@ export const ComplaintService = {
   getMyComplaints: () => api('/user/complaints'),
   getById: (id) => api(`/user/complaints/${id}`),
   lodge: (data) => api('/user/complaints', { method: 'POST', body: JSON.stringify(data) }),
-  withdraw: (id, reason) => api(`/user/complaints/${id}/withdraw`, { method: 'PUT', body: JSON.stringify({ reason }) })
+  withdraw: (id, reason) => api(`/user/complaints/${id}/withdraw`, { method: 'PUT', body: JSON.stringify({ reason }) }),
+  provideMaterials: (id, materials) => api(`/user/complaints/${id}/materials`, { method: 'PUT', body: JSON.stringify({ materials }) }),
+  acceptResolution: (id) => api(`/user/complaints/${id}/accept-resolution`, { method: 'PUT' }),
+  reopen: (id, reason) => api(`/user/complaints/${id}/reopen`, { method: 'PUT', body: JSON.stringify({ reason }) })
 };
 
 export const NotificationService = {

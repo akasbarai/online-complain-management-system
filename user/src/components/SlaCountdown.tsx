@@ -14,7 +14,7 @@ type CountdownState = {
   tone: 'complete' | 'breached' | 'pending' | 'safe' | 'warning' | 'urgent';
 };
 
-const terminalStatuses = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED];
+const terminalStatuses = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN];
 
 const formatDuration = (ms: number) => {
   const totalMinutes = Math.max(0, Math.floor(ms / 60000));

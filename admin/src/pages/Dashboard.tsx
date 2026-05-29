@@ -35,8 +35,8 @@ export const Dashboard = () => {
 
   const stats = [
     { label: 'Total Complaints', value: complaints.length, icon: AlertCircle, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Resolved', value: complaints.filter(c => c.status === 'Resolved').length, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Pending/Escalated', value: complaints.filter(c => ['Escalated', 'Submitted', 'Under Review'].includes(c.status)).length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Resolved', value: complaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Active/Escalated', value: complaints.filter(c => ['Escalated', 'Submitted', 'Under Review', 'Assigned', 'In Progress', 'Awaiting Materials', 'Reopened'].includes(c.status)).length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'Active Officers', value: officers.filter(o => o.status === 'Active').length, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 

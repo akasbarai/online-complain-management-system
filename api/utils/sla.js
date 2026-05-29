@@ -1,5 +1,5 @@
-const TERMINAL_STATUSES = ['Resolved', 'Closed', 'Rejected'];
-const SLA_START_STATUSES = ['Assigned', 'In Progress', 'Awaiting Materials'];
+const TERMINAL_STATUSES = ['Resolved', 'Closed', 'Rejected', 'Withdrawn'];
+const SLA_START_STATUSES = ['Assigned', 'In Progress', 'Awaiting Materials', 'Reopened'];
 
 const SLA_RULES = {
   Critical: { hours: 24, label: '24-hour' },
@@ -18,6 +18,16 @@ const nowSql = () => (
   SLA_SIMULATION_DAYS === 0
     ? 'NOW()'
     : `DATE_ADD(NOW(), INTERVAL ${SLA_SIMULATION_DAYS} DAY)`
+);
+
+const getSimulatedNow = () => {
+  const now = new Date();
+  if (SLA_SIMULATION_DAYS === 0) return now;
+  return new Date(now.getTime() + SLA_SIMULATION_DAYS * 24 * 60 * 60 * 1000);
+};
+
+const getDeadlineHours = (priority) => (
+  SLA_RULES[priority]?.hours || DEFAULT_SLA_RULE.hours
 );
 
 const priorityHoursSql = (priorityExpression = 'priority') => (
@@ -46,6 +56,12 @@ const deadlineSql = (priorityExpression = 'priority', startExpression = nowSql()
 const isSlaStartStatus = (status) => SLA_START_STATUSES.includes(status);
 
 const refreshSlaBreaches = async (db) => {
+  const { getEscalationScheduler } = require('../services/escalationScheduler');
+  const scheduler = getEscalationScheduler();
+  if (scheduler && scheduler.db === db) {
+    return scheduler.runDueEscalations();
+  }
+
   const [overdue] = await db.query(
     `SELECT id
      FROM complaints
@@ -94,6 +110,8 @@ module.exports = {
   SLA_START_STATUSES,
   TERMINAL_STATUSES,
   deadlineSql,
+  getDeadlineHours,
+  getSimulatedNow,
   isSlaStartStatus,
   nowSql,
   priorityHoursSql,

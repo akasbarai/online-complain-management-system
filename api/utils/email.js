@@ -4,6 +4,8 @@ let transporter;
 let transporterKey;
 
 const PLACEHOLDER_RE = /^(your_|replace_|change_this|example\b|todo\b)/i;
+const ADMIN_MAIL_ADDRESS = 'akas69167@gmail.com';
+const ADMIN_MAIL_FROM = `OCMS Admin <${ADMIN_MAIL_ADDRESS}>`;
 
 const readEnv = (name) => {
   const value = process.env[name];
@@ -18,11 +20,13 @@ const readFirstUsableEnv = (...names) =>
 
 const getMailConfig = () => {
   const gmailUser = readEnv('GMAIL_USER');
-  const user = readFirstUsableEnv('GMAIL_USER', 'SMTP_USER');
   const pass = readFirstUsableEnv('GMAIL_APP_PASSWORD', 'GMAIL_PASS', 'SMTP_PASS');
   const host = readFirstUsableEnv('SMTP_HOST');
+  const user = host
+    ? readFirstUsableEnv('SMTP_USER', 'GMAIL_USER')
+    : readFirstUsableEnv('GMAIL_USER', 'SMTP_USER') || (pass ? ADMIN_MAIL_ADDRESS : '');
   const explicitService = readEnv('SMTP_SERVICE');
-  const service = isUsableValue(explicitService) ? explicitService : (isUsableValue(gmailUser) ? 'gmail' : '');
+  const service = isUsableValue(explicitService) ? explicitService : (!host && (isUsableValue(gmailUser) || isUsableValue(pass)) ? 'gmail' : '');
 
   if (!user || !pass || (!host && !service)) {
     return null;
@@ -38,7 +42,7 @@ const getMailConfig = () => {
     port,
     secure: readEnv('SMTP_SECURE') === 'true' || port === 465,
     service,
-    from: readEnv('MAIL_FROM') || readEnv('GMAIL_FROM') || user
+    from: ADMIN_MAIL_FROM
   };
 };
 
@@ -54,7 +58,7 @@ const getMailStatus = () => {
 
   return {
     configured: false,
-    message: 'Set GMAIL_USER and GMAIL_APP_PASSWORD, or set SMTP_HOST/SMTP_USER/SMTP_PASS, on the API server.'
+    message: `Set GMAIL_USER=${ADMIN_MAIL_ADDRESS} and GMAIL_APP_PASSWORD on the API server.`
   };
 };
 
@@ -63,6 +67,12 @@ const getTransporter = () => {
   if (!config) {
     const error = new Error(getMailStatus().message);
     error.code = 'MAIL_NOT_CONFIGURED';
+    throw error;
+  }
+
+  if (config.user.toLowerCase() !== ADMIN_MAIL_ADDRESS) {
+    const error = new Error(`Admin emails must be sent through ${ADMIN_MAIL_ADDRESS}. Set GMAIL_USER=${ADMIN_MAIL_ADDRESS}.`);
+    error.code = 'MAIL_SENDER_MISMATCH';
     throw error;
   }
 
@@ -159,8 +169,44 @@ const sendAccountVerifiedEmail = ({ to, name, loginUrl }) => {
   return sendMail({ to, subject, text, html });
 };
 
+const sendPasswordResetEmail = ({ to, name, resetUrl }) => {
+  const safeName = name || 'Citizen';
+  const subject = 'Reset your OCMS password';
+  const text = [
+    `Hello ${safeName},`,
+    '',
+    'We received a request to reset your OCMS password.',
+    'Use the link below to set a new password. This link expires in 24 hours.',
+    '',
+    `Reset password: ${resetUrl}`,
+    '',
+    'If you did not request this, you can ignore this email.',
+    '',
+    'Regards,',
+    'OCMS Admin Team'
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+      <p>Hello ${escapeHtml(safeName)},</p>
+      <p>We received a request to reset your OCMS password.</p>
+      <p>Use the link below to set a new password. This link expires in 24 hours.</p>
+      <p>
+        <a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 16px;border-radius:6px;text-decoration:none">
+          Reset password
+        </a>
+      </p>
+      <p>If you did not request this, you can ignore this email.</p>
+      <p>Regards,<br/>OCMS Admin Team</p>
+    </div>
+  `;
+
+  return sendMail({ to, subject, text, html });
+};
+
 module.exports = {
   getMailStatus,
   sendAccountVerifiedEmail,
+  sendPasswordResetEmail,
   verifyMailTransport
 };

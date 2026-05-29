@@ -6,6 +6,9 @@ import { ComplaintService } from '../services/api';
 import { ComplaintStatus, Complaint } from '../types';
 import { Search, Filter, Eye, Clock, MapPin, AlertTriangle, CheckCircle } from 'lucide-react';
 
+const statusLabel = (status: ComplaintStatus) =>
+  status === ComplaintStatus.AWAITING_MATERIALS ? 'Waiting for Citizen' : status;
+
 export const Complaints = () => {
   const location = useLocation();
   const isResolvedView = location.pathname.includes('resolved');
@@ -53,13 +56,13 @@ export const Complaints = () => {
        if (filterStatus) {
          matchesStatus = c.status === filterStatus;
        } else {
-         matchesStatus = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED].includes(c.status);
+         matchesStatus = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN].includes(c.status);
        }
     } else {
        if (filterStatus) {
          matchesStatus = c.status === filterStatus;
        } else {
-         matchesStatus = ![ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED].includes(c.status);
+         matchesStatus = ![ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN].includes(c.status);
        }
     }
 
@@ -67,7 +70,7 @@ export const Complaints = () => {
   });
 
   const renderSlaTimer = (c: Complaint) => {
-    if (c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED || c.status === ComplaintStatus.REJECTED) {
+    if (c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED || c.status === ComplaintStatus.REJECTED || c.status === ComplaintStatus.WITHDRAWN) {
        return <span className="text-slate-400 text-xs flex items-center bg-slate-50 px-2 py-1 rounded border border-slate-100"><CheckCircle size={12} className="mr-1"/> Done</span>;
     }
     
@@ -136,13 +139,15 @@ export const Complaints = () => {
                    <option value={ComplaintStatus.RESOLVED}>Resolved</option>
                    <option value={ComplaintStatus.CLOSED}>Closed</option>
                    <option value={ComplaintStatus.REJECTED}>Rejected</option>
+                   <option value={ComplaintStatus.WITHDRAWN}>Withdrawn</option>
                  </>
                ) : (
                  <>
                    <option value={ComplaintStatus.ASSIGNED}>Assigned</option>
                    <option value={ComplaintStatus.IN_PROGRESS}>In Progress</option>
-                   <option value={ComplaintStatus.AWAITING_MATERIALS}>Awaiting Materials</option>
+                   <option value={ComplaintStatus.AWAITING_MATERIALS}>Waiting for Citizen</option>
                    <option value={ComplaintStatus.ESCALATED}>Escalated</option>
+                   <option value={ComplaintStatus.REOPENED}>Reopened</option>
                  </>
                )}
              </Select>
@@ -165,7 +170,7 @@ export const Complaints = () => {
                 </div>
                 
                 <div className="flex items-center gap-4">
-                   <Badge variant={c.status === ComplaintStatus.RESOLVED ? 'success' : c.status === ComplaintStatus.ESCALATED || c.status === ComplaintStatus.REJECTED ? 'danger' : c.status === ComplaintStatus.UNDER_REVIEW ? 'secondary' : 'warning'}>{c.status}</Badge>
+                   <Badge variant={c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED ? 'success' : c.status === ComplaintStatus.ESCALATED || c.status === ComplaintStatus.REJECTED ? 'danger' : c.status === ComplaintStatus.UNDER_REVIEW || c.status === ComplaintStatus.WITHDRAWN ? 'secondary' : 'warning'}>{statusLabel(c.status)}</Badge>
                    <Link to={`/complaints/${c.id}`}>
                       <Button variant="outline" size="sm">
                          <Eye size={14} className="mr-2" /> View Details

@@ -4,10 +4,49 @@ const pool = require('../db/connection');
 const authMiddleware = require('../middleware/auth');
 const { createNotification, getNotificationsFor, getUnreadNotificationCount, markNotificationRead } = require('../utils/notifications');
 const { deadlineSql, nowSql, refreshSlaBreaches } = require('../utils/sla');
+const { saveDataUrl, sendUploadError } = require('../utils/uploads');
 const { validateEnum, validatePassword, validateRequired } = require('../utils/validation');
+const { getEscalationScheduler } = require('../services/escalationScheduler');
 const router = express.Router();
 
 const COMPLAINT_STATUSES = ['Under Review', 'In Progress', 'Awaiting Materials', 'Resolved', 'Rejected'];
+const OFFICER_STATUS_TRANSITIONS = {
+  Assigned: ['In Progress', 'Awaiting Materials', 'Resolved', 'Rejected'],
+  'In Progress': ['Awaiting Materials', 'Resolved', 'Rejected'],
+  'Awaiting Materials': ['In Progress', 'Resolved', 'Rejected'],
+  Reopened: ['In Progress', 'Awaiting Materials', 'Resolved', 'Rejected'],
+  Submitted: [],
+  'Under Review': [],
+  Escalated: [],
+  Resolved: [],
+  Closed: [],
+  Rejected: [],
+  Withdrawn: []
+};
+
+const canOfficerSetComplaintStatus = (currentStatus, nextStatus) => {
+  if (currentStatus === nextStatus) {
+    return { allowed: false, reason: `Complaint is already ${nextStatus}` };
+  }
+
+  const allowedStatuses = OFFICER_STATUS_TRANSITIONS[currentStatus] || [];
+  if (!allowedStatuses.includes(nextStatus)) {
+    return { allowed: false, reason: `Cannot change complaint from ${currentStatus} to ${nextStatus}` };
+  }
+
+  return { allowed: true };
+};
+
+const syncEscalationQueue = async (complaintId) => {
+  const scheduler = getEscalationScheduler();
+  if (!scheduler) return;
+
+  try {
+    await scheduler.syncComplaintById(complaintId);
+  } catch (err) {
+    console.error(`Failed to sync escalation queue for complaint ${complaintId}:`, err);
+  }
+};
 
 router.use(authMiddleware('officer'));
 
@@ -16,7 +55,7 @@ router.get('/attention', async (req, res) => {
     await refreshSlaBreaches(pool);
 
     const [[assigned]] = await pool.query(
-      "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id = ? AND status = 'Assigned' AND is_trashed = FALSE",
+      "SELECT COUNT(*) as count FROM complaints WHERE assigned_officer_id = ? AND status IN ('Assigned', 'Reopened') AND is_trashed = FALSE",
       [req.user.id]
     );
     const [[escalated]] = await pool.query(
@@ -27,7 +66,7 @@ router.get('/attention', async (req, res) => {
       `SELECT COUNT(*) as count FROM complaints
        WHERE assigned_officer_id = ?
        AND is_trashed = FALSE
-       AND status NOT IN ('Resolved', 'Closed', 'Rejected')
+       AND status NOT IN ('Resolved', 'Closed', 'Rejected', 'Withdrawn')
        AND sla_deadline IS NOT NULL
        AND sla_deadline <= DATE_ADD(${nowSql()}, INTERVAL 24 HOUR)`,
       [req.user.id]
@@ -151,10 +190,15 @@ router.put('/complaints/:id/status', async (req, res) => {
     if (statusError) return res.status(400).json({ error: statusError });
 
     const [complaints] = await pool.query(
-      'SELECT id, user_id FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
+      'SELECT id, user_id, status FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
       [req.params.id, req.user.id]
     );
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    const transition = canOfficerSetComplaintStatus(complaints[0].status, status);
+    if (!transition.allowed) return res.status(400).json({ error: transition.reason });
+    if (['Awaiting Materials', 'Rejected', 'Resolved'].includes(status) && !String(remark || '').trim()) {
+      return res.status(400).json({ error: 'Remarks are required for this status update' });
+    }
 
     const [result] = await pool.query(
       `UPDATE complaints SET
@@ -174,17 +218,29 @@ router.put('/complaints/:id/status', async (req, res) => {
 
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Complaint not found' });
 
+    const action = status === 'Awaiting Materials'
+      ? 'More information requested from citizen'
+      : `Status updated to ${status}: ${remark}`;
     await pool.query(
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, `Status updated to ${status}: ${remark}`, req.user.name || 'Officer', remark || '']
+      [req.params.id, action, req.user.name || 'Officer', remark || '']
     );
+    await syncEscalationQueue(req.params.id);
+
+    const notificationTitle = status === 'Awaiting Materials'
+      ? `Action needed for complaint #${req.params.id}`
+      : `Complaint #${req.params.id} Update`;
+    const notificationMessage = status === 'Awaiting Materials'
+      ? `${req.user.name || 'Your officer'} needs more information before continuing: ${remark}`
+      : `Status updated to ${status} by ${req.user.name}. ${remark || ''}`.trim();
 
     await createNotification(pool, {
-      title: `Complaint #${req.params.id} Update`,
-      message: `Status updated to ${status} by ${req.user.name}. ${remark || ''}`.trim(),
+      title: notificationTitle,
+      message: notificationMessage,
       target: 'Users',
       recipientType: 'User',
-      recipientId: complaints[0].user_id
+      recipientId: complaints[0].user_id,
+      priority: status === 'Awaiting Materials' ? 'Important' : 'Normal'
     });
 
     res.json({ message: 'Status updated' });
@@ -203,10 +259,13 @@ router.put('/complaints/:id/escalate', async (req, res) => {
     if (requiredError) return res.status(400).json({ error: requiredError });
 
     const [complaints] = await pool.query(
-      'SELECT id, user_id FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
+      'SELECT id, user_id, status FROM complaints WHERE id = ? AND assigned_officer_id = ? AND is_trashed = FALSE',
       [req.params.id, req.user.id]
     );
     if (complaints.length === 0) return res.status(404).json({ error: 'Complaint not found' });
+    if (!['Assigned', 'In Progress', 'Awaiting Materials', 'Reopened'].includes(complaints[0].status)) {
+      return res.status(400).json({ error: `Cannot escalate a complaint that is ${complaints[0].status}` });
+    }
 
     const [result] = await pool.query(
       'UPDATE complaints SET status = ?, updated_at = NOW() WHERE id = ? AND assigned_officer_id = ?',
@@ -219,6 +278,7 @@ router.put('/complaints/:id/escalate', async (req, res) => {
       'INSERT INTO complaint_history (complaint_id, action, actor, details) VALUES (?, ?, ?, ?)',
       [req.params.id, `Escalated: ${reason}`, req.user.name || 'Officer', reason]
     );
+    await syncEscalationQueue(req.params.id);
 
     await createNotification(pool, {
       title: `Complaint #${req.params.id} Escalated`,
@@ -256,10 +316,12 @@ router.put('/notifications/:id/read', async (req, res) => {
 router.put('/profile', async (req, res) => {
   try {
     const { name, profilePhoto } = req.body;
+    const profilePhotoUrl = await saveDataUrl(profilePhoto, { req, folder: 'officers/profiles' });
     await pool.query('UPDATE officers SET name = COALESCE(?, name), profile_photo = COALESCE(?, profile_photo) WHERE id = ?',
-      [name, profilePhoto, req.user.id]);
+      [name, profilePhotoUrl, req.user.id]);
     res.json({ message: 'Profile updated' });
   } catch (err) {
+    if (sendUploadError(res, err)) return;
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
@@ -290,7 +352,14 @@ router.put('/password', async (req, res) => {
 router.get('/me', async (req, res) => {
   try {
     const [officers] = await pool.query(
-      'SELECT id, name, email, department_id, hierarchy_level_id, role, jurisdiction, status, profile_photo FROM officers WHERE id = ?',
+      `SELECT o.id, o.name, o.email, o.department_id, o.hierarchy_level_id, o.role,
+        o.jurisdiction, o.status, o.profile_photo,
+        d.name as department_name,
+        hl.name as hierarchy_name
+       FROM officers o
+       LEFT JOIN departments d ON o.department_id = d.id
+       LEFT JOIN hierarchy_levels hl ON o.hierarchy_level_id = hl.id
+       WHERE o.id = ?`,
       [req.user.id]
     );
     if (officers.length === 0) return res.status(404).json({ error: 'Officer not found' });
@@ -301,7 +370,9 @@ router.get('/me', async (req, res) => {
       name: o.name,
       email: o.email,
       departmentId: o.department_id,
+      departmentName: o.department_name,
       hierarchyLevelId: o.hierarchy_level_id,
+      designation: o.hierarchy_name,
       role: o.role,
       jurisdiction: o.jurisdiction,
       status: o.status,

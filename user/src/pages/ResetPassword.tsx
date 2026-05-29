@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Card, Button, Input } from '../components/ui';
+import { Card, Button, PasswordInput } from '../components/ui';
 import { AuthService } from '../services/api';
 import { KeyRound, CheckCircle, AlertCircle } from 'lucide-react';
+
+const HELP_DESK_EMAIL = 'akas69167@gmail.com';
 
 export const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -32,6 +34,13 @@ export const ResetPassword = () => {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Invalid Link</h2>
           <p className="text-slate-600 mb-6">No reset token was provided in the URL.</p>
+          <p className="mb-6 text-sm text-slate-500">
+            Need help? Email{' '}
+            <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold text-primary-700 hover:text-primary-800">
+              {HELP_DESK_EMAIL}
+            </a>
+            .
+          </p>
           <Link to="/login">
             <Button className="w-full">Return to Login</Button>
           </Link>
@@ -112,11 +121,11 @@ export const ResetPassword = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
            <div>
              <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-             <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter password" />
+             <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter password" />
            </div>
            <div>
              <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
-             <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="Confirm password" />
+             <PasswordInput value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="Confirm password" />
            </div>
            
            <Button type="submit" className="w-full">Save New Password</Button>
@@ -126,6 +135,12 @@ export const ResetPassword = () => {
                Cancel and return to login
              </Link>
            </div>
+           <p className="text-center text-xs text-slate-500">
+             Help desk:{' '}
+             <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold text-primary-700 hover:text-primary-800">
+               {HELP_DESK_EMAIL}
+             </a>
+           </p>
         </form>
       </Card>
     </div>

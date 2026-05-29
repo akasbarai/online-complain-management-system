@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Input, Badge, Spinner } from '../components/ui';
+import { Card, Button, PasswordInput, Badge, Spinner } from '../components/ui';
 import { AuthService } from '../services/api';
 import { Shield, MapPin, Briefcase, Key, Camera } from 'lucide-react';
 import { compressImage } from '../utils/compressImage';
@@ -86,6 +86,9 @@ export const Profile = () => {
 
   if (!officer) return <div className="p-8 text-center">Profile not found.</div>;
 
+  const departmentLabel = officer.departmentName || 'Not assigned';
+  const positionLabel = officer.designation || 'Not assigned';
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">Officer Profile</h1>
@@ -130,12 +133,12 @@ export const Profile = () => {
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between border-b border-slate-200 pb-1">
-                  <span className="text-slate-500">Department ID</span>
-                  <span className="font-mono">{officer.departmentId}</span>
+                  <span className="text-slate-500">Department</span>
+                  <span className="max-w-[60%] text-right font-medium text-slate-900 break-words">{departmentLabel}</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-200 pb-1">
-                  <span className="text-slate-500">Designation</span>
-                  <span>{officer.designation || officer.hierarchyLevelId}</span>
+                  <span className="text-slate-500">Position</span>
+                  <span className="max-w-[60%] text-right font-medium text-slate-900 break-words">{positionLabel}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Role</span>
@@ -178,8 +181,7 @@ export const Profile = () => {
           <form onSubmit={handlePasswordChange} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={passData.current}
                 onChange={e => setPassData({...passData, current: e.target.value})}
                 required
@@ -187,8 +189,7 @@ export const Profile = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-              <Input 
-                type="password" 
+              <PasswordInput
                 value={passData.new} 
                 onChange={e => setPassData({...passData, new: e.target.value})} 
                 required 
@@ -196,8 +197,7 @@ export const Profile = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
-              <Input 
-                type="password" 
+              <PasswordInput
                 value={passData.confirm} 
                 onChange={e => setPassData({...passData, confirm: e.target.value})} 
                 required 

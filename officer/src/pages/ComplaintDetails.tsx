@@ -7,6 +7,11 @@ import { LocationMap } from '../components/LocationMap';
 import { Complaint, ComplaintStatus } from '../types';
 import { ArrowLeft, MapPin, Calendar, CheckCircle, ArrowUpRight, Ban, Shield, Clock, FileText } from 'lucide-react';
 
+const TERMINAL_STATUSES = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN];
+
+const statusLabel = (status: ComplaintStatus) =>
+  status === ComplaintStatus.AWAITING_MATERIALS ? 'Waiting for Citizen' : status;
+
 export const ComplaintDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -79,9 +84,26 @@ export const ComplaintDetails = () => {
 
   if (!complaint) return <div className="p-8 text-center">Complaint not found.</div>;
 
+  const isTerminal = TERMINAL_STATUSES.includes(complaint.status);
+  const isEscalated = complaint.status === ComplaintStatus.ESCALATED;
+  const canWorkComplaint = !isTerminal && !isEscalated;
+  const canStartOrResume = complaint.status === ComplaintStatus.ASSIGNED || complaint.status === ComplaintStatus.AWAITING_MATERIALS || complaint.status === ComplaintStatus.REOPENED;
+  const needsRemarks = actionModal.type === 'Resolve' || actionModal.type === 'Reject' || actionModal.type === 'Wait' || actionModal.type === 'Escalate';
   const slaDueDate = complaint.slaDeadline
     ? new Date(complaint.slaDeadline).toLocaleString()
     : 'Starts after assignment';
+  const actionTitle = actionModal.type === 'Wait'
+    ? 'Ask Citizen for More Information'
+    : `${actionModal.type || ''} Complaint`;
+  const confirmLabel = actionModal.type === 'Wait'
+    ? 'Send Request'
+    : `Confirm ${actionModal.type}`;
+  const remarksLabel = actionModal.type === 'Wait'
+    ? 'What information do you need from the citizen?'
+    : 'Remarks / Reason';
+  const remarksPlaceholder = actionModal.type === 'Wait'
+    ? 'Example: Please provide the exact location, document number, or a clearer photo so we can continue.'
+    : 'Type here...';
 
   return (
     <div className="space-y-6">
@@ -97,7 +119,7 @@ export const ComplaintDetails = () => {
                    <h1 className="text-xl font-bold text-slate-900">{complaint.title}</h1>
                    <p className="font-mono text-sm text-slate-500 mt-1">ID: {complaint.id}</p>
                 </div>
-                <Badge variant={complaint.status === ComplaintStatus.RESOLVED ? 'success' : complaint.status === ComplaintStatus.ESCALATED || complaint.status === ComplaintStatus.REJECTED ? 'danger' : complaint.status === ComplaintStatus.UNDER_REVIEW ? 'secondary' : 'warning'}>{complaint.status}</Badge>
+                <Badge variant={complaint.status === ComplaintStatus.RESOLVED || complaint.status === ComplaintStatus.CLOSED ? 'success' : complaint.status === ComplaintStatus.ESCALATED || complaint.status === ComplaintStatus.REJECTED ? 'danger' : complaint.status === ComplaintStatus.UNDER_REVIEW || complaint.status === ComplaintStatus.WITHDRAWN ? 'secondary' : 'warning'}>{statusLabel(complaint.status)}</Badge>
              </div>
              
              <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100 mb-6">
@@ -178,6 +200,7 @@ export const ComplaintDetails = () => {
                   <div key={i} className="relative pl-6">
                      <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-slate-200 border-2 border-white"></div>
                      <p className="text-sm font-medium text-slate-900">{h.action}</p>
+                     {h.details && <p className="mt-1 text-sm leading-6 text-slate-600">{h.details}</p>}
                      <div className="flex justify-between text-xs text-slate-500 mt-1">
                         <span>{h.actor}</span>
                         <span>{new Date(h.date).toLocaleString()}</span>
@@ -191,14 +214,20 @@ export const ComplaintDetails = () => {
         <div className="space-y-6">
            <Card className="p-6 sticky top-6">
               <h3 className="font-semibold mb-4 text-slate-900">Actions</h3>
+
+              {complaint.status === ComplaintStatus.AWAITING_MATERIALS && (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+                  Waiting for the citizen to send the requested information. You will receive a notification when they respond.
+                </div>
+              )}
               
-              {complaint.status === ComplaintStatus.ASSIGNED && (
+              {canStartOrResume && (
                 <Button className="w-full mb-3" onClick={startProgress}>
-                   Start Progress
+                   {complaint.status === ComplaintStatus.AWAITING_MATERIALS || complaint.status === ComplaintStatus.REOPENED ? 'Resume Work' : 'Start Progress'}
                 </Button>
               )}
 
-              {complaint.status !== ComplaintStatus.RESOLVED && complaint.status !== ComplaintStatus.CLOSED && (
+              {canWorkComplaint && (
                  <div className="space-y-3">
                     <Button variant="primary" className="w-full bg-green-600 hover:bg-green-700" onClick={() => setActionModal({ isOpen: true, type: 'Resolve' })}>
                        <CheckCircle size={16} className="mr-2" /> Mark Resolved
@@ -207,7 +236,7 @@ export const ComplaintDetails = () => {
                        <ArrowUpRight size={16} className="mr-2" /> Escalate
                     </Button>
                     <Button variant="secondary" className="w-full" onClick={() => setActionModal({ isOpen: true, type: 'Wait' })}>
-                       <Clock size={16} className="mr-2" /> Await Materials
+                       <Clock size={16} className="mr-2" /> Ask Citizen for Info
                     </Button>
                     <Button variant="danger" className="w-full bg-white text-red-600 border border-red-200 hover:bg-red-50" onClick={() => setActionModal({ isOpen: true, type: 'Reject' })}>
                        <Ban size={16} className="mr-2" /> Reject Complaint
@@ -215,9 +244,15 @@ export const ComplaintDetails = () => {
                  </div>
               )}
               
-              {complaint.status === ComplaintStatus.RESOLVED && (
+              {isTerminal && (
                  <div className="bg-green-50 text-green-800 p-4 rounded text-center text-sm">
-                    This complaint has been resolved.
+                    This complaint is {complaint.status.toLowerCase()}.
+                 </div>
+              )}
+
+              {isEscalated && (
+                 <div className="bg-red-50 text-red-800 p-4 rounded text-center text-sm">
+                    This complaint has been escalated and is awaiting admin action.
                  </div>
               )}
            </Card>
@@ -227,22 +262,22 @@ export const ComplaintDetails = () => {
       <Modal 
          isOpen={actionModal.isOpen} 
          onClose={() => setActionModal({ isOpen: false, type: null })} 
-         title={`${actionModal.type} Complaint`}
+         title={actionTitle}
       >
          <div className="space-y-4">
             <p className="text-sm text-slate-600">
                {actionModal.type === 'Escalate' && "This will send the complaint to your superior. Please provide a reason."}
                {actionModal.type === 'Resolve' && "Confirm that you have fixed the issue. Add any closing remarks."}
-               {actionModal.type === 'Wait' && "Explain what materials or information are missing to proceed."}
+               {actionModal.type === 'Wait' && "Tell the citizen exactly what you need from them. This message will appear in their portal as an action they must complete."}
                {actionModal.type === 'Reject' && "Are you sure? This will close the ticket as invalid. Please explain why."}
             </p>
             <div>
-               <label className="block text-sm font-medium text-slate-700 mb-1">Remarks / Reason</label>
-               <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Type here..." />
+               <label className="block text-sm font-medium text-slate-700 mb-1">{remarksLabel}</label>
+               <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder={remarksPlaceholder} />
             </div>
             <div className="flex justify-end gap-2">
                <Button variant="ghost" onClick={() => setActionModal({ isOpen: false, type: null })}>Cancel</Button>
-               <Button onClick={handleAction}>Confirm {actionModal.type}</Button>
+               <Button onClick={handleAction} disabled={needsRemarks && !remarks.trim()}>{confirmLabel}</Button>
             </div>
          </div>
       </Modal>

@@ -53,6 +53,7 @@ export const AuthService = {
     await api('/officer/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) });
     return true;
   },
+  forgotPassword: (email) => api('/auth/officer/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   confirmPasswordReset: async (token, newPassword) => {
     await api('/auth/officer/reset-password', { method: 'PUT', body: JSON.stringify({ token, newPassword }) });
     return true;

@@ -1,16 +1,16 @@
-
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Card, Button, Input } from '../components/ui';
+import { Link } from 'react-router-dom';
+import { Card, Button, Input, PasswordInput } from '../components/ui';
 import { AuthService } from '../services/api';
-import { UserPlus, CheckCircle, Clock, Camera, Upload, FileText } from 'lucide-react';
+import { Camera, Clock, FileText, Upload, UserPlus } from 'lucide-react';
 import { compressImage } from '../utils/compressImage';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MOBILE_RE = /^98\d{8}$/;
+const MOBILE_RE = /^(97|98)\d{8}$/;
+const MOBILE_RULE_TEXT = 'The phone number must start from 97 or 98 and be exactly 10 digits.';
+const HELP_DESK_EMAIL = 'akas69167@gmail.com';
 
 export const Register = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,8 +23,6 @@ export const Register = () => {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
-
-  // Helper to compress image (imported from utils)
 
   const updateField = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -53,7 +51,7 @@ export const Register = () => {
     if (!mobile) {
       nextErrors.mobile = 'Phone number is required.';
     } else if (!MOBILE_RE.test(mobile)) {
-      nextErrors.mobile = 'Phone number must start with 98 or 97 and be exactly 10 digits.';
+      nextErrors.mobile = MOBILE_RULE_TEXT;
     }
     if (!formData.password.trim()) nextErrors.password = 'Password is required.';
     if (!address) nextErrors.address = 'Address is required.';
@@ -65,8 +63,8 @@ export const Register = () => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'profilePicture' | 'idCardUrl') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit check before compression
-        setError("File size too large. Max 5MB allowed.");
+      if (file.size > 5 * 1024 * 1024) {
+        setError('File size too large. Max 5MB allowed.');
         return;
       }
 
@@ -74,8 +72,8 @@ export const Register = () => {
         const compressedBase64 = await compressImage(file);
         setFormData(prev => ({ ...prev, [field]: compressedBase64 }));
         setError('');
-      } catch (err) {
-        setError("Failed to process image. Please try another.");
+      } catch {
+        setError('Failed to process image. Please try another.');
       }
     }
   };
@@ -86,9 +84,10 @@ export const Register = () => {
     if (!validateForm()) return;
 
     if (!formData.idCardUrl) {
-      setError("Please upload an ID Card/Document for verification.");
+      setError('Please upload an ID Card/Document for verification.');
       return;
     }
+
     try {
       await AuthService.register({
         ...formData,
@@ -100,10 +99,10 @@ export const Register = () => {
       setSuccess(true);
     } catch (err: any) {
       setSuccess(false);
-      const isQuotaError = err.message.toLowerCase().includes('quota') || 
-                           err.message.toLowerCase().includes('storage limits') ||
-                           err.name === 'QuotaExceededError';
-      
+      const isQuotaError = err.message.toLowerCase().includes('quota') ||
+        err.message.toLowerCase().includes('storage limits') ||
+        err.name === 'QuotaExceededError';
+
       if (isQuotaError) {
         setError("Registration failed because browser storage is full. Please try again after clicking the 'Reset Storage' button below.");
       } else {
@@ -113,7 +112,7 @@ export const Register = () => {
   };
 
   const handleResetStorage = () => {
-    if (confirm("This will clear local portal data from this browser. Continue?")) {
+    if (confirm('This will clear local portal data from this browser. Continue?')) {
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('ocms_')) localStorage.removeItem(key);
       });
@@ -140,6 +139,13 @@ export const Register = () => {
                   <li>Our administrative team will review your ID documentation.</li>
                   <li>You can log in after an admin approves your account.</li>
                 </ul>
+                <p className="mt-3">
+                  Need help? Email{' '}
+                  <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold underline">
+                    {HELP_DESK_EMAIL}
+                  </a>
+                  .
+                </p>
               </div>
            </div>
            <Link to="/login">
@@ -161,7 +167,7 @@ export const Register = () => {
            <h1 className="text-2xl font-bold text-slate-950">Citizen Registration</h1>
            <p className="mt-1 text-sm text-slate-500">Create an account to report issues.</p>
         </div>
-        
+
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4 text-center border border-red-100 flex flex-col items-center gap-2">
             <span>{error}</span>
@@ -174,7 +180,6 @@ export const Register = () => {
         )}
 
         <form onSubmit={handleRegister} className="space-y-6">
-           {/* Profile Picture Upload */}
            <div className="flex flex-col items-center mb-6">
               <label className="relative cursor-pointer group">
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'profilePicture')} />
@@ -229,22 +234,28 @@ export const Register = () => {
                    type="tel"
                    inputMode="numeric"
                    maxLength={10}
-                   pattern="98[0-9]{8}"
+                   pattern="(97|98)[0-9]{8}"
+                   title={MOBILE_RULE_TEXT}
                    value={formData.mobile}
-                   onChange={e => updateField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                   placeholder="98XXXXXXXX"
+                   onChange={e => {
+                     e.currentTarget.setCustomValidity('');
+                     updateField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10));
+                   }}
+                   onInvalid={e => {
+                     if (e.currentTarget.validity.patternMismatch) {
+                       e.currentTarget.setCustomValidity(MOBILE_RULE_TEXT);
+                     }
+                   }}
+                   placeholder="9XXXXXXXX"
                    autoComplete="tel"
                    aria-invalid={Boolean(fieldErrors.mobile)}
-                   aria-describedby={fieldErrors.mobile ? 'mobile-error' : undefined}
                    className={fieldErrors.mobile ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : undefined}
                  />
-                 {fieldErrors.mobile && <p id="mobile-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.mobile}</p>}
                </div>
                <div>
                  <label className="block text-sm font-medium text-slate-700 mb-1">Password <span className="text-red-500">*</span></label>
-                 <Input
+                 <PasswordInput
                    required
-                   type="password"
                    value={formData.password}
                    onChange={e => updateField('password', e.target.value)}
                    placeholder="enter password"
@@ -271,10 +282,9 @@ export const Register = () => {
                {fieldErrors.address && <p id="address-error" className="mt-1 text-xs font-medium text-red-600">{fieldErrors.address}</p>}
              </div>
 
-             {/* ID Card Upload */}
              <div className="pt-2">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Government ID Proof <span className="text-red-500">*</span></label>
-                <div className="border border-slate-300 border-dashed rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Organization ID Proof <span className="text-red-500">*</span></label>
+                <div className={`border border-dashed rounded-lg p-4 transition-colors ${formData.idCardUrl ? 'border-primary-300 bg-primary-50/60' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}>
                    <input type="file" id="id-upload" className="hidden" accept="image/*, application/pdf" onChange={(e) => handleFileChange(e, 'idCardUrl')} />
                    <label htmlFor="id-upload" className="cursor-pointer flex flex-col items-center justify-center gap-2">
                       {formData.idCardUrl ? (
@@ -298,19 +308,25 @@ export const Register = () => {
                              <span className="text-primary-600 font-medium hover:underline">Click to upload</span>
                              <span className="text-slate-500"> or drag and drop</span>
                           </div>
-                          <p className="text-xs text-slate-400">JPG, PNG orcc PDF (Documents allowed)</p>
+                          <p className="text-xs text-slate-400">JPG, PNG or PDF. Maximum 5MB.</p>
                         </>
                       )}
                    </label>
                 </div>
              </div>
            </div>
-           
+
            <Button type="submit" className="w-full mt-4">Submit Registration</Button>
-           
+
             <div className="mt-4 text-center text-sm text-slate-500">
               Already have an account? <Link to="/login" className="text-primary-600 font-medium hover:underline">Sign In</Link>
             </div>
+            <p className="text-center text-xs text-slate-500">
+              Help desk:{' '}
+              <a href={`mailto:${HELP_DESK_EMAIL}`} className="font-semibold text-primary-700 hover:text-primary-800">
+                {HELP_DESK_EMAIL}
+              </a>
+            </p>
          </form>
       </Card>
       </div>

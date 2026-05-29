@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, Clock, FileText, MapPin, User, XCircle } from 'lucide-react';
+import { ArrowLeft, CalendarClock, CheckCircle2, Clock, FileText, MapPin, PackageCheck, RotateCcw, Send, User, XCircle } from 'lucide-react';
 import { Badge, Button, Card, Spinner, Textarea } from '../components/ui';
 import { ComplaintService } from '../services/api';
 import { SlaCountdown } from '../components/SlaCountdown';
@@ -10,16 +10,27 @@ import { Complaint, ComplaintStatus } from '../types';
 const statusTone = (status: ComplaintStatus): 'success' | 'secondary' | 'warning' | 'danger' | 'info' => {
   if (status === ComplaintStatus.RESOLVED || status === ComplaintStatus.CLOSED) return 'success';
   if (status === ComplaintStatus.REJECTED) return 'danger';
+  if (status === ComplaintStatus.WITHDRAWN) return 'secondary';
   if (status === ComplaintStatus.SUBMITTED || status === ComplaintStatus.UNDER_REVIEW) return 'info';
   return 'warning';
 };
 
 const statusProgress = (status: ComplaintStatus) => {
   if (status === ComplaintStatus.RESOLVED || status === ComplaintStatus.CLOSED) return '100%';
-  if (status === ComplaintStatus.IN_PROGRESS || status === ComplaintStatus.AWAITING_MATERIALS || status === ComplaintStatus.ESCALATED) return '66%';
+  if (status === ComplaintStatus.WITHDRAWN || status === ComplaintStatus.REJECTED) return '100%';
+  if (status === ComplaintStatus.IN_PROGRESS || status === ComplaintStatus.AWAITING_MATERIALS || status === ComplaintStatus.ESCALATED || status === ComplaintStatus.REOPENED) return '66%';
   if (status === ComplaintStatus.ASSIGNED || status === ComplaintStatus.UNDER_REVIEW) return '42%';
   return '18%';
 };
+
+const statusLabel = (status: ComplaintStatus) =>
+  status === ComplaintStatus.AWAITING_MATERIALS ? 'Action Needed' : status;
+
+const latestInformationRequest = (complaint: Complaint) =>
+  [...(complaint.history || [])].reverse().find(event => {
+    const action = (event.action || '').toLowerCase();
+    return action.includes('more information') || action.includes('awaiting materials');
+  });
 
 export const ComplaintDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +39,10 @@ export const ComplaintDetails = () => {
   const [loading, setLoading] = useState(true);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [isWithdrawMode, setIsWithdrawMode] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
+  const [isReopenMode, setIsReopenMode] = useState(false);
+  const [materialsResponse, setMaterialsResponse] = useState('');
+  const [isSendingMaterials, setIsSendingMaterials] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -62,6 +77,44 @@ export const ComplaintDetails = () => {
     }
   };
 
+  const handleAcceptResolution = async () => {
+    if (!complaint) return;
+    try {
+      await ComplaintService.acceptResolution(complaint.id);
+      await refresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleProvideMaterials = async () => {
+    if (!complaint || !materialsResponse.trim()) return;
+
+    try {
+      setIsSendingMaterials(true);
+      await ComplaintService.provideMaterials(complaint.id, materialsResponse.trim());
+      await refresh();
+      setMaterialsResponse('');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSendingMaterials(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (complaint && reopenReason.trim()) {
+      try {
+        await ComplaintService.reopen(complaint.id, reopenReason.trim());
+        await refresh();
+        setIsReopenMode(false);
+        setReopenReason('');
+      } catch (err: any) {
+        alert(err.message);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -72,7 +125,10 @@ export const ComplaintDetails = () => {
 
   if (!complaint) return <div className="p-8 text-center">Complaint not found.</div>;
 
-  const canWithdraw = complaint.status !== ComplaintStatus.CLOSED && complaint.status !== ComplaintStatus.RESOLVED;
+  const canWithdraw = ![ComplaintStatus.CLOSED, ComplaintStatus.RESOLVED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN].includes(complaint.status);
+  const canReviewResolution = complaint.status === ComplaintStatus.RESOLVED;
+  const canProvideMaterials = complaint.status === ComplaintStatus.AWAITING_MATERIALS;
+  const informationRequest = latestInformationRequest(complaint);
 
   return (
     <div className="page-shell">
@@ -85,7 +141,7 @@ export const ComplaintDetails = () => {
           <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="page-title">{complaint.title}</h1>
-            <Badge variant={statusTone(complaint.status)}>{complaint.status}</Badge>
+            <Badge variant={statusTone(complaint.status)}>{statusLabel(complaint.status)}</Badge>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">#{complaint.id}</span>
@@ -96,6 +152,16 @@ export const ComplaintDetails = () => {
             <Button variant={isWithdrawMode ? 'outline' : 'danger'} size="sm" onClick={() => setIsWithdrawMode(!isWithdrawMode)} className="gap-2">
               <XCircle size={16} /> {isWithdrawMode ? 'Cancel Withdrawal' : 'Withdraw'}
             </Button>
+          )}
+          {canReviewResolution && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button size="sm" onClick={handleAcceptResolution} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                <CheckCircle2 size={16} /> Accept Resolution
+              </Button>
+              <Button variant={isReopenMode ? 'outline' : 'secondary'} size="sm" onClick={() => setIsReopenMode(!isReopenMode)} className="gap-2">
+                <RotateCcw size={16} /> {isReopenMode ? 'Cancel Reopen' : 'Reopen'}
+              </Button>
+            </div>
           )}
         </div>
         <div className="border-t border-primary-100 bg-primary-50/60 px-6 py-4">
@@ -121,6 +187,58 @@ export const ComplaintDetails = () => {
             onChange={e => setWithdrawReason(e.target.value)}
           />
           <Button variant="danger" onClick={handleWithdraw} disabled={!withdrawReason.trim()}>Confirm Withdrawal</Button>
+        </Card>
+      )}
+
+      {isReopenMode && (
+        <Card className="border-amber-200 bg-amber-50 p-5">
+          <h3 className="font-semibold text-amber-900">Reopen Complaint</h3>
+          <p className="mt-1 text-sm text-amber-800">Explain why the resolution did not solve your issue.</p>
+          <Textarea
+            placeholder="Reason for reopening"
+            className="mb-4 mt-4 bg-white"
+            value={reopenReason}
+            onChange={e => setReopenReason(e.target.value)}
+          />
+          <Button onClick={handleReopen} disabled={!reopenReason.trim()}>Confirm Reopen</Button>
+        </Card>
+      )}
+
+      {canProvideMaterials && (
+        <Card className="border-amber-200 bg-amber-50 p-5 shadow-sm shadow-amber-100/80">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-white text-amber-700">
+              <PackageCheck size={20} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-amber-950">Officer Needs Your Response</h3>
+              <p className="mt-1 text-sm leading-6 text-amber-800">
+                Your complaint is paused until you send the information below. The officer and admin will be notified after you reply.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 rounded-md border border-amber-200 bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-700">What is needed</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              {informationRequest?.details || 'Please provide the extra information requested by the officer so work can continue.'}
+            </p>
+          </div>
+          <label className="mt-4 block text-sm font-semibold text-amber-950" htmlFor="citizen-response">
+            Your response
+          </label>
+          <Textarea
+            id="citizen-response"
+            rows={4}
+            placeholder="Write the details the officer asked for. Example: exact address, document number, photo details, contact time, or other missing information."
+            className="mt-2 bg-white"
+            value={materialsResponse}
+            onChange={e => setMaterialsResponse(e.target.value)}
+          />
+          <div className="mt-4 flex justify-end">
+            <Button onClick={handleProvideMaterials} disabled={!materialsResponse.trim() || isSendingMaterials} className="gap-2">
+              <Send size={16} /> {isSendingMaterials ? 'Sending...' : 'Send Response'}
+            </Button>
+          </div>
         </Card>
       )}
 

@@ -4,7 +4,81 @@ import { Card, Button, Select, Modal, Badge, Input, Textarea, Skeleton, Spinner 
 import { ComplaintService, OfficerService, DeptService, UserService, HierarchyService } from '../services/api';
 import { LocationMap } from '../components/LocationMap';
 import { Complaint, ComplaintStatus, Status, Priority } from '../types';
-import { AlertTriangle, Clock, ArrowRight, CheckSquare, Eye, Search, UserPlus, MapPin, Image as ImageIcon, FileText, Zap, Flag } from 'lucide-react';
+import { AlertTriangle, Clock, ArrowRight, CheckSquare, Eye, Search, UserPlus, MapPin, Image as ImageIcon, FileText, Zap, Flag, RotateCcw } from 'lucide-react';
+
+const TERMINAL_STATUSES = [ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN];
+
+const isTerminalStatus = (status: ComplaintStatus) => TERMINAL_STATUSES.includes(status);
+const canReopenStatus = (status: ComplaintStatus) => TERMINAL_STATUSES.includes(status);
+const statusRequiresNotes = (status: ComplaintStatus | '') =>
+  Boolean(status && [
+    ComplaintStatus.AWAITING_MATERIALS,
+    ComplaintStatus.ESCALATED,
+    ComplaintStatus.RESOLVED,
+    ComplaintStatus.CLOSED,
+    ComplaintStatus.REJECTED
+  ].includes(status as ComplaintStatus));
+
+const getAdminStatusOptions = (complaint: Complaint): ComplaintStatus[] => {
+  const hasOfficer = Boolean(complaint.assignedOfficerId);
+
+  switch (complaint.status) {
+    case ComplaintStatus.SUBMITTED:
+      return [ComplaintStatus.UNDER_REVIEW, ComplaintStatus.REJECTED, ComplaintStatus.CLOSED];
+    case ComplaintStatus.UNDER_REVIEW:
+      return [
+        ...(hasOfficer ? [ComplaintStatus.ASSIGNED] : []),
+        ComplaintStatus.REJECTED,
+        ComplaintStatus.CLOSED
+      ];
+    case ComplaintStatus.ASSIGNED:
+      return [
+        ComplaintStatus.IN_PROGRESS,
+        ComplaintStatus.AWAITING_MATERIALS,
+        ComplaintStatus.ESCALATED,
+        ComplaintStatus.RESOLVED,
+        ComplaintStatus.REJECTED,
+        ComplaintStatus.CLOSED
+      ];
+    case ComplaintStatus.IN_PROGRESS:
+      return [
+        ComplaintStatus.AWAITING_MATERIALS,
+        ComplaintStatus.ESCALATED,
+        ComplaintStatus.RESOLVED,
+        ComplaintStatus.REJECTED,
+        ComplaintStatus.CLOSED
+      ];
+    case ComplaintStatus.AWAITING_MATERIALS:
+      return [
+        ComplaintStatus.IN_PROGRESS,
+        ComplaintStatus.ESCALATED,
+        ComplaintStatus.RESOLVED,
+        ComplaintStatus.REJECTED,
+        ComplaintStatus.CLOSED
+      ];
+    case ComplaintStatus.ESCALATED:
+      return [
+        ...(hasOfficer ? [ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS, ComplaintStatus.AWAITING_MATERIALS] : []),
+        ComplaintStatus.RESOLVED,
+        ComplaintStatus.REJECTED,
+        ComplaintStatus.CLOSED
+      ];
+    case ComplaintStatus.REOPENED:
+      return [
+        ...(hasOfficer ? [ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS, ComplaintStatus.AWAITING_MATERIALS, ComplaintStatus.RESOLVED] : []),
+        ComplaintStatus.ESCALATED,
+        ComplaintStatus.REJECTED,
+        ComplaintStatus.CLOSED
+      ];
+    case ComplaintStatus.RESOLVED:
+      return [ComplaintStatus.CLOSED];
+    default:
+      return [];
+  }
+};
+
+const statusLabel = (status: ComplaintStatus) =>
+  status === ComplaintStatus.AWAITING_MATERIALS ? 'Waiting for Citizen' : status;
 
 export const Complaints = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +92,7 @@ export const Complaints = () => {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const [isReopenOpen, setIsReopenOpen] = useState(false);
   
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   
@@ -32,6 +107,7 @@ export const Complaints = () => {
   const [statusNotes, setStatusNotes] = useState('');
   
   const [newPriority, setNewPriority] = useState<Priority | ''>('');
+  const [reopenReason, setReopenReason] = useState('');
 
   useEffect(() => {
     loadAllData();
@@ -81,7 +157,8 @@ export const Complaints = () => {
     if (!selectedComplaint) return [];
     const deptOfficers = officers.filter(o => 
       o.departmentId === selectedComplaint.departmentId && 
-      o.status === Status.ACTIVE
+      o.status === Status.ACTIVE &&
+      o.role !== 'Admin'
     );
     return deptOfficers.sort((a, b) => {
       const aIsRecommended = a.hierarchyLevelId === selectedComplaint.currentHierarchyLevelId;
@@ -97,7 +174,7 @@ export const Complaints = () => {
   };
 
   const renderSlaTimer = (c: Complaint) => {
-    if (c.status === ComplaintStatus.RESOLVED || c.status === ComplaintStatus.CLOSED || c.status === ComplaintStatus.REJECTED) {
+    if (isTerminalStatus(c.status)) {
        return <span className="text-slate-400 text-xs">Completed</span>;
     }
     
@@ -142,6 +219,7 @@ export const Complaints = () => {
   };
 
   const handleAssignClick = (complaint: Complaint) => {
+    if (isTerminalStatus(complaint.status)) return;
     setSelectedComplaint(complaint);
     setReassignOfficerId('');
     setReassignReason('');
@@ -149,16 +227,26 @@ export const Complaints = () => {
   };
 
   const handleStatusClick = (complaint: Complaint) => {
+    const options = getAdminStatusOptions(complaint);
+    if (options.length === 0) return;
     setSelectedComplaint(complaint);
-    setNewStatus(complaint.status);
+    setNewStatus(options[0]);
     setStatusNotes('');
     setIsStatusOpen(true);
   };
 
   const handlePriorityClick = (complaint: Complaint) => {
+    if (isTerminalStatus(complaint.status)) return;
     setSelectedComplaint(complaint);
     setNewPriority(complaint.priority || '');
     setIsPriorityOpen(true);
+  };
+
+  const handleReopenClick = (complaint: Complaint) => {
+    if (!canReopenStatus(complaint.status)) return;
+    setSelectedComplaint(complaint);
+    setReopenReason('');
+    setIsReopenOpen(true);
   };
 
   const submitReassign = async (e: React.FormEvent) => {
@@ -203,6 +291,20 @@ export const Complaints = () => {
     }
   };
 
+  const submitReopen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedComplaint && reopenReason.trim()) {
+      try {
+        await ComplaintService.reopen(selectedComplaint.id, reopenReason.trim());
+        setIsReopenOpen(false);
+        await refresh();
+        refreshAttention();
+      } catch (err: any) {
+        alert(err.message);
+      }
+    }
+  };
+
   const getStatusColor = (status: ComplaintStatus) => {
     switch (status) {
       case ComplaintStatus.RESOLVED: return 'success';
@@ -211,6 +313,8 @@ export const Complaints = () => {
       case ComplaintStatus.AWAITING_MATERIALS: return 'warning';
       case ComplaintStatus.UNDER_REVIEW: return 'secondary';
       case ComplaintStatus.REJECTED: return 'danger';
+      case ComplaintStatus.WITHDRAWN: return 'secondary';
+      case ComplaintStatus.REOPENED: return 'warning';
       case ComplaintStatus.CLOSED: return 'default';
       default: return 'default';
     }
@@ -293,7 +397,7 @@ export const Complaints = () => {
                >
                  <option value="">All Statuses</option>
                  {Object.values(ComplaintStatus).map(s => (
-                   <option key={s} value={s}>{s}</option>
+                   <option key={s} value={s}>{statusLabel(s)}</option>
                  ))}
                </Select>
              </div>
@@ -318,6 +422,9 @@ export const Complaints = () => {
                 filteredComplaints.map((c) => {
                   const isUnassigned = !c.assignedOfficerId;
                   const deptName = departments.find(d => d.id === c.departmentId)?.name || 'Unknown';
+                  const isTerminal = isTerminalStatus(c.status);
+                  const canUpdateStatus = getAdminStatusOptions(c).length > 0;
+                  const canReopen = canReopenStatus(c.status);
                   
                   return (
                   <tr key={c.id} className={`hover:bg-slate-50 ${c.status === ComplaintStatus.ESCALATED ? 'bg-red-50/30' : ''}`}>
@@ -333,7 +440,7 @@ export const Complaints = () => {
                        {renderSlaTimer(c)}
                     </td>
                     <td className="px-6 py-4">
-                      <Badge variant={getStatusColor(c.status)}>{c.status}</Badge>
+                      <Badge variant={getStatusColor(c.status)}>{statusLabel(c.status)}</Badge>
                       {c.status === ComplaintStatus.ESCALATED && (
                         <div className="flex items-center text-red-600 text-xs mt-1 font-medium">
                           <AlertTriangle size={12} className="mr-1" /> Auto-Escalated
@@ -355,17 +462,23 @@ export const Complaints = () => {
                       <Button size="sm" variant="ghost" onClick={() => handleViewClick(c)} title="View Details">
                         <Eye size={14} className="mr-1" /> View
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handlePriorityClick(c)} title="Set Priority">
+                      <Button size="sm" variant="outline" onClick={() => handlePriorityClick(c)} disabled={isTerminal} title={isTerminal ? "Completed complaints cannot change priority" : "Set Priority"}>
                         <Flag size={14} className="mr-1" /> Priority
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleStatusClick(c)} title="Update Status">
+                      <Button size="sm" variant="outline" onClick={() => handleStatusClick(c)} disabled={!canUpdateStatus} title={canUpdateStatus ? "Update Status" : "No valid status changes"}>
                         <CheckSquare size={14} className="mr-1" /> Status
                       </Button>
+                      {canReopen && (
+                        <Button size="sm" variant="outline" onClick={() => handleReopenClick(c)} title="Reopen Complaint">
+                          <RotateCcw size={14} className="mr-1" /> Reopen
+                        </Button>
+                      )}
                       <Button 
                         size="sm" 
                         variant={isUnassigned ? 'primary' : 'outline'} 
                         onClick={() => handleAssignClick(c)} 
-                        title={isUnassigned ? "Assign Officer" : "Reassign Officer"}
+                        disabled={isTerminal}
+                        title={isTerminal ? "Completed complaints cannot be assigned" : isUnassigned ? "Assign Officer" : "Reassign Officer"}
                       >
                         {isUnassigned ? <UserPlus size={14} className="mr-1" /> : <ArrowRight size={14} className="mr-1" />}
                         {isUnassigned ? 'Assign' : 'Reassign'}
@@ -399,7 +512,7 @@ export const Complaints = () => {
                  </p>
                </div>
                <div className="text-right">
-                  <Badge variant={getStatusColor(selectedComplaint.status)} className="text-sm px-3 py-1">{selectedComplaint.status}</Badge>
+                  <Badge variant={getStatusColor(selectedComplaint.status)} className="text-sm px-3 py-1">{statusLabel(selectedComplaint.status)}</Badge>
                </div>
              </div>
 
@@ -513,6 +626,7 @@ export const Complaints = () => {
                        <div className={`absolute left-0 top-1.5 w-4.5 h-4.5 rounded-full border-2 z-10 ${isBreach ? 'bg-red-50 border-red-500' : 'bg-slate-50 border-primary-500'}`}></div>
                        <div className={`p-3 rounded border shadow-sm ${isBreach ? 'bg-red-50/50 border-red-100' : 'bg-white border-slate-100'}`}>
                          <p className={`text-sm font-medium ${isBreach ? 'text-red-800' : 'text-slate-900'}`}>{safeAction}</p>
+                         {h.details && <p className="text-xs text-slate-600 mt-1">{h.details}</p>}
                          <div className="flex justify-between items-center mt-1">
                             <span className="text-xs text-slate-500">{h.date ? new Date(h.date).toLocaleString() : 'Unknown Date'}</span>
                             <span className="text-xs font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded">{h.actor || 'System'}</span>
@@ -593,7 +707,7 @@ export const Complaints = () => {
            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm mb-4">
               <p><strong>Complaint ID:</strong> {selectedComplaint?.id}</p>
               <p className="truncate"><strong>Subject:</strong> {selectedComplaint?.title}</p>
-              <p><strong>Current Status:</strong> {selectedComplaint?.status}</p>
+              <p><strong>Current Status:</strong> {selectedComplaint ? statusLabel(selectedComplaint.status) : ''}</p>
            </div>
            
            <div>
@@ -602,25 +716,28 @@ export const Complaints = () => {
               </label>
               <Select required value={newStatus} onChange={e => setNewStatus(e.target.value as ComplaintStatus)}>
                 <option value="">Select Status</option>
-                {Object.values(ComplaintStatus).map(s => (
-                  <option key={s} value={s}>{s}</option>
+                {selectedComplaint && getAdminStatusOptions(selectedComplaint).map(s => (
+                  <option key={s} value={s}>{statusLabel(s)}</option>
                 ))}
               </Select>
            </div>
 
            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Notes / Resolution Details</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {newStatus === ComplaintStatus.AWAITING_MATERIALS ? 'What information do you need from the citizen?' : 'Notes / Resolution Details'} {statusRequiresNotes(newStatus) && <span className="text-red-500">*</span>}
+              </label>
               <Textarea 
                 rows={3}
+                required={statusRequiresNotes(newStatus)}
                 value={statusNotes}
                 onChange={e => setStatusNotes(e.target.value)}
-                placeholder="Describe action taken..."
+                placeholder={newStatus === ComplaintStatus.AWAITING_MATERIALS ? 'Example: Please provide the exact location, document number, or a clearer photo so we can continue.' : 'Describe action taken...'}
               />
            </div>
 
            <div className="flex justify-end space-x-3 mt-6">
               <Button type="button" variant="ghost" onClick={() => setIsStatusOpen(false)}>Cancel</Button>
-              <Button type="submit">Update Status</Button>
+              <Button type="submit" disabled={statusRequiresNotes(newStatus) && !statusNotes.trim()}>Update Status</Button>
            </div>
         </form>
       </Modal>
@@ -647,6 +764,33 @@ export const Complaints = () => {
            <div className="flex justify-end space-x-3 mt-6">
               <Button type="button" variant="ghost" onClick={() => setIsPriorityOpen(false)}>Cancel</Button>
               <Button type="submit">Set Priority</Button>
+           </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isReopenOpen} onClose={() => setIsReopenOpen(false)} title="Reopen Complaint">
+        <form onSubmit={submitReopen} className="space-y-4">
+           <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm mb-4">
+              <p><strong>Complaint ID:</strong> {selectedComplaint?.id}</p>
+              <p className="truncate"><strong>Current Status:</strong> {selectedComplaint ? statusLabel(selectedComplaint.status) : ''}</p>
+           </div>
+
+           <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Reopen Reason <span className="text-red-500">*</span>
+              </label>
+              <Textarea
+                rows={3}
+                required
+                value={reopenReason}
+                onChange={e => setReopenReason(e.target.value)}
+                placeholder="Explain why this complaint should be reopened..."
+              />
+           </div>
+
+           <div className="flex justify-end space-x-3 mt-6">
+              <Button type="button" variant="ghost" onClick={() => setIsReopenOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={!reopenReason.trim()}>Reopen Complaint</Button>
            </div>
         </form>
       </Modal>

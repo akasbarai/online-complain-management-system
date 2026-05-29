@@ -9,12 +9,16 @@ import { Complaint, ComplaintStatus } from '../types';
 const statusTone = (status: ComplaintStatus): 'success' | 'secondary' | 'warning' | 'danger' | 'info' => {
   if (status === ComplaintStatus.RESOLVED || status === ComplaintStatus.CLOSED) return 'success';
   if (status === ComplaintStatus.REJECTED) return 'danger';
+  if (status === ComplaintStatus.WITHDRAWN) return 'secondary';
   if (status === ComplaintStatus.UNDER_REVIEW || status === ComplaintStatus.SUBMITTED) return 'info';
   return 'warning';
 };
 
+const statusLabel = (status: ComplaintStatus) =>
+  status === ComplaintStatus.AWAITING_MATERIALS ? 'Action Needed' : status;
+
 const isOpenComplaint = (status: ComplaintStatus) =>
-  ![ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED].includes(status);
+  ![ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, ComplaintStatus.REJECTED, ComplaintStatus.WITHDRAWN].includes(status);
 
 export const Dashboard = () => {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -44,7 +48,7 @@ export const Dashboard = () => {
   const filteredComplaints = complaints.filter(c => {
     if (filter === 'open' && !isOpenComplaint(c.status)) return false;
     if (filter === 'resolved' && isOpenComplaint(c.status)) return false;
-    const text = `${c.title} ${c.description} ${c.location || ''} ${c.status}`.toLowerCase();
+    const text = `${c.title} ${c.description} ${c.location || ''} ${c.status} ${statusLabel(c.status)}`.toLowerCase();
     return text.includes(query.toLowerCase());
   });
 
@@ -129,7 +133,7 @@ export const Dashboard = () => {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <SlaCountdown complaint={latestComplaint} />
-              <Badge variant={statusTone(latestComplaint.status)}>{latestComplaint.status}</Badge>
+              <Badge variant={statusTone(latestComplaint.status)}>{statusLabel(latestComplaint.status)}</Badge>
               <Link to={`/complaints/${latestComplaint.id}`}>
                 <Button variant="outline" size="sm">View</Button>
               </Link>
@@ -206,7 +210,12 @@ export const Dashboard = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:justify-end">
-                    <Badge variant={statusTone(c.status)}>{c.status}</Badge>
+                    <div className="flex flex-col items-start gap-1 sm:items-end">
+                      <Badge variant={statusTone(c.status)}>{statusLabel(c.status)}</Badge>
+                      {c.status === ComplaintStatus.AWAITING_MATERIALS && (
+                        <span className="text-xs font-medium text-amber-700">Officer needs your response</span>
+                      )}
+                    </div>
                     <ChevronRight className="text-slate-300 transition-colors group-hover:text-primary-500" size={20} />
                   </div>
                 </div>
